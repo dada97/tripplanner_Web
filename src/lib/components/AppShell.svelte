@@ -1,31 +1,36 @@
 <script lang="ts">
-    import { Map, Calendar, DollarSign } from 'lucide-svelte';
+    import { Calendar, DollarSign } from 'lucide-svelte';
     import type { Snippet } from 'svelte';
+    import { tripStore } from '../stores/tripStore.svelte';
 
     let { children, view = $bindable('itinerary') }: { children: Snippet, view: string } = $props();
     
     const tabs = [
         { id: 'itinerary', label: 'My Trip', icon: Calendar },
-        { id: 'finance', label: 'Expenses', icon: DollarSign },
-        { id: 'map', label: 'Map', icon: Map },
+        { id: 'finance', label: 'Expenses', icon: DollarSign }
     ];
+
+    // This is a simplification. In a real app, you'd get the current trip differently.
+    let currentTrip = $derived(tripStore.trips[0]);
 </script>
 
 <div class="app-shell">
     <!-- Desktop Sidebar -->
     <aside class="sidebar">
-        <div class="logo">Travel Assistant</div>
-        <nav>
-            {#each tabs as tab}
-                <button 
-                    class:active={view === tab.id} 
-                    onclick={() => view = tab.id}
-                >
-                    <tab.icon size={20} />
-                    <span>{tab.label}</span>
-                </button>
-            {/each}
-        </nav>
+        <div>
+            <div class="logo">Travel Assistant</div>
+            <nav>
+                {#each tabs as tab}
+                    <button 
+                        class:active={view === tab.id} 
+                        onclick={() => view = tab.id}
+                    >
+                        <tab.icon size={20} />
+                        <span>{tab.label}</span>
+                    </button>
+                {/each}
+            </nav>
+        </div>
     </aside>
 
     <div class="main-content">
@@ -68,6 +73,7 @@
         border-right: 1px solid #e4e4e7;
         display: flex;
         flex-direction: column;
+        justify-content: space-between;
         padding: 1rem;
     }
     

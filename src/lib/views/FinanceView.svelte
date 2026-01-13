@@ -1,6 +1,7 @@
 <script lang="ts">
-    import { tripStore, type Trip, type Activity } from '../stores/tripStore.svelte';
-    import { PieChart, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-svelte';
+    import { tripStore, type Trip, type Activity, currencySymbols, type ExpenseCategory, type Currency } from '../stores/tripStore.svelte';
+    import PieChart from '../components/PieChart.svelte';
+    import { TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-svelte';
 
     let { selectedTripId = $bindable() }: { selectedTripId: string | null } = $props();
 
@@ -12,36 +13,47 @@
         if (!trip) return null;
 
         let totalEstimated = 0;
-        let totalActual = 0;
-        const categoryBreakdown: Record<string, { estimated: number, actual: number }> = {
-            transport: { estimated: 0, actual: 0 },
-            food: { estimated: 0, actual: 0 },
-            stay: { estimated: 0, actual: 0 },
-            shopping: { estimated: 0, actual: 0 },
-            other: { estimated: 0, actual: 0 }
+        // Group by currency
+        const actuals: Record<string, { total: number, breakdown: Record<ExpenseCategory, number> }> = {};
+
+        // Helper to init currency stats
+        const getCurrencyStats = (currency: string) => {
+            if (!actuals[currency]) {
+                actuals[currency] = {
+                    total: 0,
+                    breakdown: {
+                        transport: 0,
+                        food: 0,
+                        stay: 0,
+                        shopping: 0,
+                        other: 0
+                    }
+                };
+            }
+            return actuals[currency];
         };
 
         trip.days.forEach(day => {
             day.activities.forEach(act => {
+                // Estimated is assumed to be in Trip Currency
                 totalEstimated += act.estimatedCost || 0;
-                totalActual += act.actualCost || 0;
-                
-                if (categoryBreakdown[act.category]) {
-                    categoryBreakdown[act.category].estimated += act.estimatedCost || 0;
-                    categoryBreakdown[act.category].actual += act.actualCost || 0;
-                }
+
+                act.expenses.forEach(expense => {
+                    const curr = expense.currency || trip?.currency || 'USD';
+                    const stats = getCurrencyStats(curr);
+                    stats.total += expense.amount;
+                    if (stats.breakdown[expense.category] !== undefined) {
+                        stats.breakdown[expense.category] += expense.amount;
+                    } else {
+                        stats.breakdown.other += expense.amount;
+                    }
+                });
             });
         });
 
-        const balance = 0;
-        const percentUsed = 0;
-
         return {
             totalEstimated,
-            totalActual,
-            balance,
-            percentUsed,
-            categoryBreakdown
+            actuals
         };
     });
 
@@ -88,50 +100,73 @@
         <div class="dashboard-grid">
             <!-- Main Stats Cards -->
             <div class="stat-card">
-                <div class="label">Total Estimated</div>
+                <div class="label">Total Estimated ({currencySymbols[trip.currency]})</div>
                 <div class="value">
-                    ${stats?.totalEstimated.toLocaleString()}
+                    {currencySymbols[trip.currency]}{stats?.totalEstimated.toLocaleString()}
                 </div>
             </div>
             
             <div class="stat-card">
-                <div class="label">Actual Spent</div>
-                <div class="value">
-                    ${stats?.totalActual.toLocaleString()}
+                <div class="label">Total Actual Spent</div>
+                <div class="value-list">
+                    {#if stats && Object.keys(stats.actuals).length > 0}
+                        {#each Object.entries(stats.actuals) as [curr, data]}
+                            <div class="curr-total">
+                                {currencySymbols[curr as Currency] || curr} {data.total.toLocaleString()}
+                            </div>
+                        {/each}
+                    {:else}
+                        <div class="curr-total">
+                            {currencySymbols[trip.currency]}0
+                        </div>
+                    {/if}
                 </div>
             </div>
         </div>
 
-        <!-- Category Breakdown -->
-        <div class="breakdown-section card">
-            <h3>Category Breakdown</h3>
-            <div class="breakdown-list">
-                {#each Object.entries(stats?.categoryBreakdown || {}) as [cat, data]}
-                    <div class="breakdown-item">
-                        <div class="cat-info">
-                            <span class="cat-label" style="color: {categoryColors[cat]}">
-                                {categoryLabels[cat]}
-                            </span>
-                            <span class="cat-values">
-                                <span class="actual">${data.actual}</span>
-                                <span class="separator">/</span>
-                                <span class="est">est. ${data.estimated}</span>
-                            </span>
-                        </div>
-                        <!-- Simple visual bar for category relative to total actual spent -->
-                        <div class="mini-track">
-                            <div 
-                                class="mini-fill" 
-                                style="
-                                    width: {stats?.totalActual ? (data.actual / stats.totalActual * 100) : 0}%;
-                                    background-color: {categoryColors[cat]};
-                                "
-                            ></div>
+        <!-- Category Breakdown per Currency -->
+        {#if stats}
+            {#each Object.entries(stats.actuals) as [curr, data]}
+                {#if data.total > 0}
+                    {@const pieData = Object.entries(data.breakdown).reduce((acc, [cat, val]) => {
+                        // @ts-ignore
+                        acc[cat] = { actual: val, estimated: 0 }; 
+                        return acc;
+                    }, {} as any)}
+                    <div class="breakdown-section card">
+                        <h3>Category Breakdown ({curr})</h3>
+                        <div class="breakdown-content">
+                            <div class="chart-container">
+                                <PieChart data={pieData} colors={categoryColors} currencySymbol={currencySymbols[curr as Currency] || '$'} />
+                            </div>
+                            <div class="breakdown-list">
+                                {#each Object.entries(data.breakdown) as [cat, val]}
+                                    <div class="breakdown-item">
+                                        <div class="cat-info">
+                                            <span class="cat-label" style="color: {categoryColors[cat]}">
+                                                {categoryLabels[cat]}
+                                            </span>
+                                            <span class="cat-values">
+                                                <span class="actual">{currencySymbols[curr as Currency] || '$'}{val.toLocaleString()}</span>
+                                            </span>
+                                        </div>
+                                        <div class="mini-track">
+                                            <div 
+                                                class="mini-fill" 
+                                                style="
+                                                    width: {data.total ? (val / data.total * 100) : 0}%;
+                                                    background-color: {categoryColors[cat]};
+                                                "
+                                            ></div>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
                         </div>
                     </div>
-                {/each}
-            </div>
-        </div>
+                {/if}
+            {/each}
+        {/if}
     {/if}
 </div>
 
@@ -210,10 +245,27 @@
     
     .label { font-size: 0.9rem; color: #71717a; margin-bottom: 0.5rem; }
     .value { font-size: 2rem; font-weight: bold; color: #18181b; }
+    .value-list { display: flex; flex-direction: column; gap: 0.25rem; }
+    .curr-total { font-size: 1.5rem; font-weight: bold; color: #18181b; }
     
-    .breakdown-section h3 { margin-top: 0; margin-bottom: 1rem; }
+    .breakdown-section { margin-bottom: 2rem; cursor: default; }
+    .breakdown-section:hover { transform: none; box-shadow: none; }
+    .breakdown-section h3 { margin-top: 0; margin-bottom: 1.5rem; }
     
+    .breakdown-content {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .chart-container {
+        flex-shrink: 0;
+    }
+
     .breakdown-list {
+        flex: 1;
+        min-width: 250px;
         display: flex;
         flex-direction: column;
         gap: 1rem;
@@ -252,7 +304,7 @@
             background: #18181b;
             border-color: #27272a;
         }
-        .value { color: #f4f4f5; }
+        .value, .curr-total { color: #f4f4f5; }
         .label, .cat-values, .empty-msg { color: #a1a1aa; }
         .cat-values .actual { color: #f4f4f5; }
         .mini-track { background: #27272a; }

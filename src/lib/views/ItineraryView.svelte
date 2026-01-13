@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tripStore, type Trip, type DaySchedule, type Activity, generateId } from '../stores/tripStore.svelte';
+    import { tripStore, type Trip, type DaySchedule, type Activity, type Expense, type ExpenseCategory, generateId, currencies, currencySymbols, type Currency } from '../stores/tripStore.svelte';
     import MapField from '../components/MapField.svelte';
     import LocationSearch from '../components/LocationSearch.svelte';
     import { Plus, Trash2, GripVertical, MapPin, X, Check, MoreVertical, DollarSign, ExternalLink, Edit } from 'lucide-svelte';
@@ -24,7 +24,10 @@
     let contextMenu = $state({ visible: false, x: 0, y: 0, activity: null as Activity | null });
     
     // Expense Modal State
-    let expenseModal = $state({ visible: false, cost: 0, activity: null as Activity | null });
+    let activityForExpenses = $state<Activity | null>(null);
+    let expenseToEdit = $state<Expense | 'new' | null>(null);
+    let currentExpenseData = $state({ amount: 0, category: 'other' as ExpenseCategory, currency: 'USD' as Currency });
+
 
     function openMenu(e: MouseEvent, act: Activity) {
         e.preventDefault();
@@ -47,8 +50,13 @@
         // Timeout to avoid immediate close from current click
         setTimeout(() => window.addEventListener('click', close), 0);
     }
+    
+    function openExpenseManager(activity: Activity) {
+        activityForExpenses = activity;
+        expenseToEdit = null; // Reset editor state
+    }
 
-    function handleMenuAction(action: 'edit' | 'google' | 'expense') {
+    function handleMenuAction(action: 'edit' | 'google') {
         if (!contextMenu.activity) return;
         const act = contextMenu.activity;
         
@@ -58,8 +66,6 @@
             isNewActivity = false;
         } else if (action === 'google') {
             window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(act.address || act.name)}`, '_blank');
-        } else if (action === 'expense') {
-            expenseModal = { visible: true, cost: act.actualCost || 0, activity: act };
         }
         
         contextMenu.visible = false;
@@ -74,8 +80,8 @@
             lat: 0,
             lng: 0,
             estimatedCost: 0,
-            actualCost: 0,
-            category: 'food',
+            expenses: [],
+            category: 'other',
             transportType: 'walk',
             notes: '',
             completed: false
@@ -109,25 +115,62 @@
         isNewActivity = false;
     }
 
+    function handleEditExpense(expense: Expense) {
+        expenseToEdit = expense;
+        currentExpenseData = { amount: expense.amount, category: expense.category, currency: expense.currency || trip?.currency || 'USD' };
+    }
+
+    function handleAddNewExpense() {
+        expenseToEdit = 'new';
+        currentExpenseData = { amount: 0, category: 'other', currency: trip?.currency || 'USD' };
+    }
+
     function saveExpense() {
-        if (expenseModal.activity && selectedTripId) {
-             // We need to update the activity in the store. 
-             // Since we don't have a direct "updateActivity" method that takes an object, 
-             // we rely on the fact that objects in the store are mutable if retrieved directly.
-             // However, to be safe and reactive with Svelte 5 runes, we might need to ensure we are updating the store correctly.
-             // tripStore.getTrip returns the reactive object.
-             
-             // Find activity index
-             const actIndex = currentDay?.activities.findIndex(a => a.id === expenseModal.activity!.id);
-             if (actIndex !== undefined && actIndex !== -1 && currentDay) {
-                 currentDay.activities[actIndex].actualCost = expenseModal.cost;
-             }
+        if (!activityForExpenses || !trip) return;
+
+        if (expenseToEdit === 'new') {
+            const newExpense: Expense = {
+                id: generateId(),
+                amount: currentExpenseData.amount,
+                category: currentExpenseData.category,
+                date: new Date().toISOString().split('T')[0],
+                currency: currentExpenseData.currency
+            };
+            tripStore.addExpense(trip.id, selectedDayIndex, activityForExpenses.id, newExpense);
+
+        } else if (expenseToEdit) {
+            const updatedExpense: Expense = {
+                ...expenseToEdit,
+                amount: currentExpenseData.amount,
+                category: currentExpenseData.category,
+                currency: currentExpenseData.currency
+            };
+            tripStore.updateExpense(trip.id, selectedDayIndex, activityForExpenses.id, updatedExpense);
         }
-        expenseModal.visible = false;
+        expenseToEdit = null;
+    }
+
+    function deleteExpense(expenseId: string) {
+        if (activityForExpenses && trip) {
+            tripStore.removeExpense(trip.id, selectedDayIndex, activityForExpenses.id, expenseId);
+        }
+    }
+    
+    function formatExpenses(expenses: Expense[]): string {
+        if (!expenses || expenses.length === 0) return '';
+        const totals: Record<string, number> = {};
+        expenses.forEach(e => {
+            const curr = e.currency || trip?.currency || 'USD';
+            totals[curr] = (totals[curr] || 0) + e.amount;
+        });
+        
+        return Object.entries(totals)
+            .map(([curr, amt]) => `${currencySymbols[curr as Currency] || '$'}${amt}`)
+            .join(', ');
     }
 
     let isCreating = $state(false);
-    let newTripData = $state({ destination: '', startDate: '', endDate: '' });
+    let newTripData = $state({ destination: '', startDate: '', endDate: '', currency: 'TWD' as Currency });
 
     function createTrip() {
         if (!newTripData.destination) return;
@@ -151,7 +194,8 @@
             destination: newTripData.destination,
             startDate: newTripData.startDate,
             endDate: newTripData.endDate,
-            days
+            days,
+            currency: newTripData.currency
         };
         
         tripStore.addTrip(newTrip);
@@ -159,13 +203,12 @@
         isCreating = false;
         
         // Reset
-        newTripData = { destination: '', startDate: '', endDate: '' };
+        newTripData = { destination: '', startDate: '', endDate: '', currency: 'TWD' };
     }
 
     function removeActivity(index: number) {
         if (selectedTripId) {
             tripStore.removeActivity(selectedTripId, selectedDayIndex, index);
-            if (editingActivityId) editingActivityId = null;
         }
     }
     
@@ -224,6 +267,14 @@
                             <label for="end">End Date</label>
                             <input id="end" type="date" bind:value={newTripData.endDate} />
                         </div>
+                    </div>
+                    <div class="field">
+                        <label for="currency">Currency</label>
+                        <select id="currency" bind:value={newTripData.currency}>
+                            {#each currencies as c}
+                                <option value={c}>{c} ({currencySymbols[c]})</option>
+                            {/each}
+                        </select>
                     </div>
                     <div class="actions">
                         <button onclick={createTrip} class="primary">Create Trip</button>
@@ -288,69 +339,79 @@
                                                         <div class="empty-state">No activities yet. Click 'Add Activity' to start planning!</div>
                                                     {/if}
                                                     
-                                                    {#if currentDay}
-                                                        {#each currentDay.activities as act, i (act.id)}                                        {@const nextAct = currentDay.activities[i + 1]}
-                                        {@const distance = nextAct ? calculateDistance(act.lat, act.lng, nextAct.lat, nextAct.lng) : null}
-                                        
-                                        <div 
-                                            class="timeline-item"
-                                            draggable="true"
-                                            role="listitem"
-                                            ondragstart={(e) => onDragStart(e, i)}
-                                            ondragover={(e) => e.preventDefault()}
-                                            ondrop={(e) => onDrop(e, i)}
-                                        >
-                                            <div class="time-col">
-                                                {#if i === 0}<span class="time-label start">start</span>{/if}
-                                                {#if i === currentDay.activities.length - 1}<span class="time-label end">end</span>{/if}
-                                            </div>
-
-                                            <div class="visual-col">
-                                                <div class="dot-container">
-                                                    <div class="dot">
-                                                        <div class="inner-dot"></div>
-                                                    </div>
-                                                </div>
-                                                {#if i < currentDay.activities.length - 1}
-                                                    <div class="line-container">
-                                                        <div class="line"></div>
-                                                        {#if distance}
-                                                            <div class="distance-pill">{distance}</div>
-                                                        {/if}
-                                                    </div>
-                                                {/if}
-                                            </div>
-
-                                            <div class="content-col">
-                                                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                                                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                                                <div 
-                                                    class="view-card"
-                                                    onclick={(e) => openMenu(e, act)}
-                                                >
-                                                    <div class="card-header">
-                                                        <span class="act-name">{act.name}</span>
-                                                        {#if act.completed}
-                                                            <Check size={16} class="check-icon" />
-                                                        {/if}
-                                                    </div>
-                                                    {#if act.notes}
-                                                        <p class="act-notes">{act.notes}</p>
-                                                    {/if}
-                                                    {#if act.estimatedCost > 0 || act.actualCost > 0}
-                                                        <div class="cost-tag">
-                                                            {#if act.actualCost > 0}
-                                                                <span class="actual">${act.actualCost}</span>
-                                                            {:else}
-                                                                <span class="est">Est. ${act.estimatedCost}</span>
-                                                            {/if}
-                                                        </div>
-                                                    {/if}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {/each}
-                                {/if}
+                                                                                                         {#if currentDay}
+                                                                                                            {#each currentDay.activities as act, i (act.id)}
+                                                                                            {@const nextAct = currentDay.activities[i + 1]}
+                                                                                            {@const distance = nextAct ? calculateDistance(act.lat, act.lng, nextAct.lat, nextAct.lng) : null}
+                                                                                            {@const hasExpenses = act.expenses.length > 0}
+                                                                                            
+                                                                                            <div 
+                                                                                                class="timeline-item"
+                                                                                                draggable="true"
+                                                                                                role="listitem"
+                                                                                                ondragstart={(e) => onDragStart(e, i)}
+                                                                                                ondragover={(e) => e.preventDefault()}
+                                                                                                ondrop={(e) => onDrop(e, i)}
+                                                                                            >
+                                                                                                <div class="time-col">
+                                                                                                    {#if i === 0}<span class="time-label start">start</span>{/if}
+                                                                                                    {#if i === currentDay.activities.length - 1}<span class="time-label end">end</span>{/if}
+                                                                                                </div>
+                                                    
+                                                                                                <div class="visual-col">
+                                                                                                    <div class="dot-container">
+                                                                                                        <div class="dot">
+                                                                                                            <div class="inner-dot"></div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                    {#if i < currentDay.activities.length - 1}
+                                                                                                        <div class="line-container">
+                                                                                                            <div class="line"></div>
+                                                                                                            {#if distance}
+                                                                                                                <div class="distance-pill">{distance}</div>
+                                                                                                            {/if}
+                                                                                                        </div>
+                                                                                                    {/if}
+                                                                                                </div>
+                                                    
+                                                                                                <div class="content-col">
+                                                                                                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                                                                                                    <div 
+                                                                                                        class="view-card"
+                                                                                                        oncontextmenu={(e) => openMenu(e, act)}
+                                                                                                        onclick={() => focusActivity(act)}
+                                                                                                    >
+                                                                                                        <div class="card-header">
+                                                                                                            <span class="act-name">{act.name}</span>
+                                                                                                            <div class="card-actions">
+                                                                                                                {#if act.completed}
+                                                                                                                    <Check size={16} class="check-icon" />
+                                                                                                                {/if}
+                                                                                                                <button class="icon-btn expense-btn" onclick={(e) => {e.stopPropagation(); openExpenseManager(act)}}>
+                                                                                                                    <DollarSign size={16} />
+                                                                                                                </button>
+                                                                                                                <button class="icon-btn" onclick={(e) => openMenu(e, act)}>
+                                                                                                                    <MoreVertical size={16} />
+                                                                                                                </button>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                        {#if act.notes}
+                                                                                                            <p class="act-notes">{act.notes}</p>
+                                                                                                        {/if}
+                                                                                                        {#if act.estimatedCost > 0 || hasExpenses}
+                                                                                                            <div class="cost-tag">
+                                                                                                                {#if hasExpenses}
+                                                                                                                    <span class="actual">{formatExpenses(act.expenses)}</span>
+                                                                                                                {:else}
+                                                                                                                    <span class="est">Est. {currencySymbols[trip?.currency || 'USD']}{act.estimatedCost}</span>
+                                                                                                                {/if}
+                                                                                                            </div>
+                                                                                                        {/if}
+                                                    
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        {/each}                                {/if}
                             </div>
                         </div>
                     {:else}
@@ -374,31 +435,29 @@
                                 </div>
 
                                 <div class="field">
-                                    <label for="edit-category">Category</label>
-                                    <select id="edit-category" bind:value={editingActivity.category}>
-                                        <option value="transport">Transport</option>
-                                        <option value="food">Food</option>
-                                        <option value="stay">Stay</option>
-                                        <option value="shopping">Shop</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-
-                                <div class="row">
-                                    <div class="field">
-                                        <label for="edit-est">Est. Cost</label>
-                                        <input id="edit-est" type="number" bind:value={editingActivity.estimatedCost} placeholder="0" />
-                                    </div>
-                                    <div class="field">
-                                        <label for="edit-actual">Actual Cost</label>
-                                        <input id="edit-actual" type="number" bind:value={editingActivity.actualCost} placeholder="0" />
-                                    </div>
-                                </div>
-
-                                <div class="field">
                                     <label for="edit-notes">Notes</label>
                                     <textarea id="edit-notes" bind:value={editingActivity.notes} rows="5"></textarea>
                                 </div>
+
+                                {#if editingActivity && editingActivity.expenses.length > 0}
+                                    <div class="field">
+                                        <label>Expenses</label>
+                                        <div class="expense-list">
+                                            {#each editingActivity.expenses as expense, i}
+                                                <div class="expense-item">
+                                                    <span>{expense.category}: {currencySymbols[expense.currency || trip?.currency || 'USD']}{expense.amount}</span>
+                                                    <button class="icon-btn danger" onclick={() => editingActivity && tripStore.removeExpense(trip.id, selectedDayIndex, editingActivity.id, expense.id)}>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            {/each}
+                                        </div>
+                                        <div class="total-actual-cost">
+                                            <strong>Total Actual:</strong>
+                                            <span>{formatExpenses(editingActivity.expenses)}</span>
+                                        </div>
+                                    </div>
+                                {/if}
                                 
                                 <div class="edit-footer">
                                     <button class="icon-btn danger delete-btn" onclick={() => {
@@ -440,25 +499,66 @@
                 <MapPin size={16} />
                 <span>Google Maps</span>
             </button>
-            <button onclick={() => handleMenuAction('expense')}>
-                <DollarSign size={16} />
-                <span>Add Expense</span>
-            </button>
         </div>
     {/if}
 
-    {#if expenseModal.visible}
-        <div class="modal-overlay">
-            <div class="modal">
-                <h3>Add Expense</h3>
-                <div class="field">
-                    <label for="expense-cost">Actual Cost</label>
-                    <input id="expense-cost" type="number" bind:value={expenseModal.cost} />
-                </div>
-                <div class="modal-actions">
-                    <button class="secondary" onclick={() => expenseModal.visible = false}>Cancel</button>
-                    <button class="primary" onclick={saveExpense}>Save</button>
-                </div>
+    {#if activityForExpenses}
+        <div class="modal-overlay" onclick={() => activityForExpenses = null}>
+            <div class="modal" onclick={(e) => e.stopPropagation()}>
+                {#if expenseToEdit}
+                    <h3>{expenseToEdit === 'new' ? 'Add' : 'Edit'} Expense</h3>
+                    <div class="field">
+                        <label for="expense-amount">Amount</label>
+                        <input id="expense-amount" type="number" bind:value={currentExpenseData.amount} />
+                    </div>
+                    <div class="field">
+                        <label for="expense-currency">Currency</label>
+                        <select id="expense-currency" bind:value={currentExpenseData.currency}>
+                            {#each currencies as c}
+                                <option value={c}>{c} ({currencySymbols[c]})</option>
+                            {/each}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="expense-category">Category</label>
+                        <select id="expense-category" bind:value={currentExpenseData.category}>
+                            <option value="transport">Transport</option>
+                            <option value="food">Food</option>
+                            <option value="stay">Stay</option>
+                            <option value="shopping">Shop</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="secondary" onclick={() => expenseToEdit = null}>Cancel</button>
+                        <button class="primary" onclick={saveExpense}>Save</button>
+                    </div>
+                {:else}
+                    <div class="modal-header">
+                        <h3>Expenses for {activityForExpenses.name}</h3>
+                        <button class="close-btn" onclick={() => activityForExpenses = null}><X size={20}/></button>
+                    </div>
+                    <div class="expense-list-modal">
+                        {#if activityForExpenses.expenses.length === 0}
+                            <p class="empty-list">No expenses logged for this activity.</p>
+                        {/if}
+                        {#each activityForExpenses.expenses as expense}
+                            <div class="expense-item-modal">
+                                <div class="expense-details">
+                                    <span class="expense-cat">{expense.category}</span>
+                                    <span class="expense-amt">{currencySymbols[expense.currency || trip?.currency || 'USD']}{expense.amount}</span>
+                                </div>
+                                <div class="expense-actions">
+                                    <button class="icon-btn" onclick={() => handleEditExpense(expense)}><Edit size={16} /></button>
+                                    <button class="icon-btn danger" onclick={() => deleteExpense(expense.id)}><Trash2 size={16} /></button>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                     <div class="modal-actions">
+                        <button class="primary" onclick={handleAddNewExpense}>Add New Expense</button>
+                    </div>
+                {/if}
             </div>
         </div>
     {/if}
@@ -739,8 +839,18 @@
     .card-header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 0.5rem;
         margin-bottom: 0.25rem;
+    }
+    .card-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    .expense-btn:hover {
+        color: #f59e0b;
+        background: #fffbeb;
     }
     .act-name {
         font-weight: 600;
@@ -770,6 +880,9 @@
         border-radius: 0.25rem;
         cursor: pointer;
     }
+    .icon-btn:hover {
+        background: #f4f4f5;
+    }
     .icon-btn.success { color: #22c55e; }
     .icon-btn.success:hover { background: #dcfce7; }
     .icon-btn.danger { color: #ef4444; }
@@ -788,6 +901,9 @@
             border-color: #3b82f6;
             color: #3b82f6;
             background: #27272a;
+        }
+        .icon-btn:hover {
+             background: #27272a;
         }
         .edit-header-bar, .edit-footer { border-color: #27272a; }
         .day-header-info { border-bottom-color: #27272a; }
@@ -849,10 +965,10 @@
     
     .modal {
         background: white;
-        padding: 2rem;
+        padding: 1.5rem;
         border-radius: 1rem;
         width: 100%;
-        max-width: 300px;
+        max-width: 400px;
         display: flex;
         flex-direction: column;
         gap: 1.5rem;
@@ -860,8 +976,57 @@
     }
     
     .modal h3 { margin: 0; }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .close-btn {
+        background: transparent;
+        border: none;
+        padding: 0.25rem;
+        cursor: pointer;
+    }
     .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 
+    .expense-list-modal {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+    .empty-list {
+        text-align: center;
+        color: #71717a;
+        padding: 2rem 0;
+    }
+    .expense-item-modal {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        background: #f4f4f5;
+    }
+    .expense-details {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .expense-cat {
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+    .expense-amt {
+        color: #3f3f46;
+    }
+    .expense-actions {
+        display: flex;
+        align-items: center;
+    }
+    
     @media (prefers-color-scheme: dark) {
         .context-menu {
             background: #27272a;
@@ -877,6 +1042,16 @@
         .modal {
             background: #18181b;
             color: #f4f4f5;
+        }
+
+        .close-btn { color: inherit; }
+
+        .expense-item-modal {
+            background: #27272a;
+        }
+
+        .expense-amt {
+            color: #d4d4d8;
         }
     }
 </style>
