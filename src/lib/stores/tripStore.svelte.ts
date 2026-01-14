@@ -15,6 +15,15 @@ export interface Expense {
     currency: Currency;
 }
 
+export interface JournalEntry {
+    id: string;
+    timestamp: string; // "HH:MM"
+    content: string;
+    weather: 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'windy' | null;
+    location?: string;
+    photos: string[]; // Base64 strings
+}
+
 export interface Activity {
     id:string;
     name: string;
@@ -32,6 +41,7 @@ export interface Activity {
 export interface DaySchedule {
     date: string;
     activities: Activity[];
+    journals: JournalEntry[];
 }
 
 export interface Trip {
@@ -57,7 +67,28 @@ class TripStore {
                         if (!trip.currency) {
                             trip.currency = 'USD'; // Default currency for old data
                         }
-                        trip.days.forEach(day => {
+                        trip.days.forEach((day: any) => {
+                            // Migrate old single journal to array
+                            if (!day.journals) {
+                                day.journals = [];
+                                if (day.journal && (day.journal.content || day.journal.location)) {
+                                    day.journals.push({
+                                        id: generateId(),
+                                        timestamp: '12:00', // Default time
+                                        content: day.journal.content || '',
+                                        weather: day.journal.weather || null,
+                                        location: day.journal.location || '',
+                                        photos: []
+                                    });
+                                }
+                                delete day.journal;
+                            }
+                            
+                            // Ensure photos array exists for existing journals
+                            day.journals.forEach((j: any) => {
+                                if (!j.photos) j.photos = [];
+                            });
+                            
                             day.activities.forEach((act: any) => {
                                 if (act.actualCost && !act.expenses) {
                                     act.expenses = [{
@@ -96,6 +127,10 @@ class TripStore {
     }
 
     addTrip(trip: Trip) {
+        // Init journals for new trip
+        trip.days.forEach(day => {
+            if (!day.journals) day.journals = [];
+        });
         this.trips.push(trip);
     }
 
@@ -112,6 +147,34 @@ class TripStore {
             
             getTrip(id: string) {
                 return this.trips.find(t => t.id === id);
+            }
+            
+            addJournalEntry(tripId: string, dayIndex: number, entry: JournalEntry) {
+                const trip = this.getTrip(tripId);
+                if (trip && trip.days[dayIndex]) {
+                    trip.days[dayIndex].journals.push(entry);
+                    // Sort by timestamp
+                    trip.days[dayIndex].journals.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+                }
+            }
+
+            updateJournalEntry(tripId: string, dayIndex: number, entry: JournalEntry) {
+                const trip = this.getTrip(tripId);
+                if (trip && trip.days[dayIndex]) {
+                    const index = trip.days[dayIndex].journals.findIndex(j => j.id === entry.id);
+                    if (index !== -1) {
+                        trip.days[dayIndex].journals[index] = entry;
+                        // Sort by timestamp
+                        trip.days[dayIndex].journals.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+                    }
+                }
+            }
+
+            removeJournalEntry(tripId: string, dayIndex: number, entryId: string) {
+                const trip = this.getTrip(tripId);
+                if (trip && trip.days[dayIndex]) {
+                    trip.days[dayIndex].journals = trip.days[dayIndex].journals.filter(j => j.id !== entryId);
+                }
             }
     
                     addActivity(tripId: string, dayIndex: number, activity: Activity) {

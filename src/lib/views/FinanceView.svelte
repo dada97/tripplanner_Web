@@ -1,7 +1,7 @@
 <script lang="ts">
     import { tripStore, type Trip, type Activity, currencySymbols, type ExpenseCategory, type Currency } from '../stores/tripStore.svelte';
     import PieChart from '../components/PieChart.svelte';
-    import { TrendingUp, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-svelte';
+    import { TrendingUp, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Download } from 'lucide-svelte';
     import { i18n } from '../stores/i18nStore.svelte';
 
     let { selectedTripId = $bindable() }: { selectedTripId: string | null } = $props();
@@ -52,6 +52,77 @@
     function selectDay(index: number) {
         selectedDayIndex = index;
         showDayPicker = false;
+    }
+
+    function exportToCSV() {
+        if (!trip || !stats) return;
+
+        const bom = '\uFEFF'; // Byte Order Mark for UTF-8 in Excel
+        let csvContent = bom;
+
+        // --- PART 1: SUMMARY ---
+        csvContent += `${i18n.t('csv.summary')}\n`;
+        // Header: Currency, Transport, Food, Stay, Shopping, Other, Total
+        const categories: ExpenseCategory[] = ['transport', 'food', 'stay', 'shopping', 'other'];
+        const headers = [
+            i18n.t('csv.headers.currency'), 
+            ...categories.map(c => i18n.t(`cat.${c}`)),
+            i18n.t('csv.headers.total')
+        ];
+        csvContent += headers.join(',') + '\n';
+
+        // Rows
+        Object.entries(stats.actuals).forEach(([curr, data]) => {
+            const row = [
+                curr,
+                ...categories.map(c => data.breakdown[c] || 0),
+                data.total
+            ];
+            csvContent += row.join(',') + '\n';
+        });
+
+        csvContent += '\n\n'; // Separator
+
+        // --- PART 2: DETAILS ---
+        csvContent += `${i18n.t('csv.details')}\n`;
+        const detailHeaders = [
+            i18n.t('csv.headers.date'),
+            i18n.t('csv.headers.day'),
+            i18n.t('csv.headers.activity'),
+            i18n.t('csv.headers.category'),
+            i18n.t('csv.headers.currency'),
+            i18n.t('csv.headers.amount'),
+            i18n.t('csv.headers.notes')
+        ];
+        csvContent += detailHeaders.join(',') + '\n';
+
+        // Iterate all days/activities regardless of viewMode
+        trip.days.forEach((day, dayIndex) => {
+            day.activities.forEach(act => {
+                act.expenses.forEach(exp => {
+                    const row = [
+                        day.date,
+                        `${i18n.t('finance.day')} ${dayIndex + 1}`,
+                        `"${act.name.replace(/"/g, '""')}"`, // Escape quotes
+                        i18n.t(`cat.${exp.category}`),
+                        exp.currency || trip?.currency || 'USD',
+                        exp.amount,
+                        `"${(act.notes || '').replace(/"/g, '""')}"` // Escape quotes
+                    ];
+                    csvContent += row.join(',') + '\n';
+                });
+            });
+        });
+
+        // Trigger Download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${trip.destination}_Expenses.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     // Derived statistics
@@ -167,7 +238,12 @@
         <header>
             <div class="header-top">
                 <button class="back-link" onclick={() => selectedTripId = null}>&larr; {i18n.t('finance.back')}</button>
-                <h2>{trip.destination} {i18n.t('finance.finances')}</h2>
+                <div class="header-title-row">
+                    <h2>{trip.destination} {i18n.t('finance.finances')}</h2>
+                    <button class="export-btn" onclick={exportToCSV} title={i18n.t('csv.export')}>
+                        <Download size={20} />
+                    </button>
+                </div>
             </div>
             
             <div class="view-controls">
@@ -556,57 +632,163 @@
         }
     }
 
-    @media (prefers-color-scheme: dark) {
-        .card, .stat-card {
-            background: #18181b;
-            border-color: #27272a;
-        }
-        .value, .curr-total { color: #f4f4f5; }
-        .label, .cat-values, .empty-msg { color: #a1a1aa; }
-        .cat-values .actual { color: #f4f4f5; }
-        .mini-track { background: #27272a; }
-        
-        .toggle-group { background: #27272a; border-color: #3f3f46; }
-        .toggle-btn { color: #a1a1aa; }
-        .toggle-btn.active { background: #3f3f46; color: #f4f4f5; }
-        
-        .nav-btn { background: #18181b; border-color: #27272a; color: #e4e4e7; }
-        .nav-btn:disabled { background: #27272a; color: #52525b; border-color: #27272a; }
-        .nav-btn:not(:disabled):hover { background: #27272a; }
-        
-        .day-toggle { background: #18181b; border-color: #27272a; color: #f4f4f5; }
-        .day-toggle:hover { border-color: #3b82f6; background: #27272a; }
-        .date-label { color: #a1a1aa; }
-        
-        .day-picker-dropdown { 
-            background: #18181b; 
-            border-color: #27272a; 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-        }
-        .day-option { color: #e4e4e7; }
-        .day-option:hover { background: #27272a; }
-        .day-option.selected { background: #1e3a8a; color: #60a5fa; }
-        .day-option .day-date { color: #a1a1aa; }
+        @media (prefers-color-scheme: dark) {
 
-        .expense-row { border-color: #27272a; }
-        .exp-activity, .exp-amount .amt { color: #f4f4f5; }
-        .date-header { 
-            color: #a1a1aa; 
-            border-bottom-color: #27272a; 
-            background: #18181b; 
+            .card, .stat-card {
+
+                background: #18181b;
+
+                border-color: #27272a;
+
+            }
+
+            .value, .curr-total { color: #f4f4f5; }
+
+            .label, .cat-values, .empty-msg { color: #a1a1aa; }
+
+            .cat-values .actual { color: #f4f4f5; }
+
+            .mini-track { background: #27272a; }
+
+            
+
+            .toggle-group { background: #27272a; border-color: #3f3f46; }
+
+            .toggle-btn { color: #a1a1aa; }
+
+            .toggle-btn.active { background: #3f3f46; color: #f4f4f5; }
+
+            
+
+            .nav-btn { background: #18181b; border-color: #27272a; color: #e4e4e7; }
+
+            .nav-btn:disabled { background: #27272a; color: #52525b; border-color: #27272a; }
+
+            .nav-btn:not(:disabled):hover { background: #27272a; }
+
+            
+
+            .day-toggle { background: #18181b; border-color: #27272a; color: #f4f4f5; }
+
+            .day-toggle:hover { border-color: #3b82f6; background: #27272a; }
+
+            .date-label { color: #a1a1aa; }
+
+            
+
+            .day-picker-dropdown { 
+
+                background: #18181b; 
+
+                border-color: #27272a; 
+
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+
+            }
+
+            .day-option { color: #e4e4e7; }
+
+            .day-option:hover { background: #27272a; }
+
+            .day-option.selected { background: #1e3a8a; color: #60a5fa; }
+
+            .day-option .day-date { color: #a1a1aa; }
+
+    
+
+            .expense-row { border-color: #27272a; }
+
+            .exp-activity, .exp-amount .amt { color: #f4f4f5; }
+
+            
+
+            .date-header { 
+
+                color: #a1a1aa; 
+
+                border-bottom-color: #27272a; 
+
+                background: #18181b; 
+
+            }
+
+            
+
+            .export-btn { color: #a1a1aa; }
+
+            .export-btn:hover { background: #27272a; color: #f4f4f5; }
+
         }
-    }
 
-    .view-controls {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1.25rem;
-        margin-top: 1.5rem;
-        width: 100%;
-    }
+    
 
-    .toggle-group {
+        .view-controls {
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            gap: 1.25rem;
+
+            margin-top: 1.5rem;
+
+            width: 100%;
+
+        }
+
+        
+
+        .header-title-row {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 1rem;
+
+        }
+
+        
+
+        .export-btn {
+
+            background: transparent;
+
+            border: none;
+
+            padding: 0.5rem;
+
+            color: #71717a;
+
+            cursor: pointer;
+
+            border-radius: 0.5rem;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            transition: all 0.2s;
+
+        }
+
+        
+
+        .export-btn:hover {
+
+            background: #f4f4f5;
+
+            color: #18181b;
+
+        }
+
+    
+
+        .toggle-group {
         display: flex;
         background: #f4f4f5;
         padding: 0.25rem;

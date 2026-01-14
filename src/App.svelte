@@ -2,6 +2,7 @@
     import AppShell from './lib/components/AppShell.svelte';
     import ItineraryView from './lib/views/ItineraryView.svelte';
     import FinanceView from './lib/views/FinanceView.svelte';
+    import JournalView from './lib/views/JournalView.svelte';
     import MapField from './lib/components/MapField.svelte';
     import { tripStore } from './lib/stores/tripStore.svelte';
 
@@ -27,6 +28,8 @@
         <ItineraryView bind:selectedTripId />
     {:else if currentView === 'finance'}
         <FinanceView bind:selectedTripId />
+    {:else if currentView === 'journal'}
+        <JournalView bind:selectedTripId />
     {:else if currentView === 'map'}
         <div class="full-map-view">
              <!-- If in full map mode, we can add a selector or just show everything -->

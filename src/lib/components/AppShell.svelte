@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Calendar, DollarSign, Languages } from 'lucide-svelte';
+    import { Calendar, DollarSign, Languages, Book } from 'lucide-svelte';
     import type { Snippet } from 'svelte';
     import { tripStore } from '../stores/tripStore.svelte';
     import { i18n } from '../stores/i18nStore.svelte';
@@ -8,7 +8,8 @@
     
     let tabs = $derived([
         { id: 'itinerary', label: i18n.t('nav.myTrip'), icon: Calendar },
-        { id: 'finance', label: i18n.t('nav.expenses'), icon: DollarSign }
+        { id: 'finance', label: i18n.t('nav.expenses'), icon: DollarSign },
+        { id: 'journal', label: i18n.t('nav.journal'), icon: Book }
     ]);
 
     // This is a simplification. In a real app, you'd get the current trip differently.
