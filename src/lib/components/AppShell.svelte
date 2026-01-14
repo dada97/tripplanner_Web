@@ -1,14 +1,15 @@
 <script lang="ts">
-    import { Calendar, DollarSign } from 'lucide-svelte';
+    import { Calendar, DollarSign, Languages } from 'lucide-svelte';
     import type { Snippet } from 'svelte';
     import { tripStore } from '../stores/tripStore.svelte';
+    import { i18n } from '../stores/i18nStore.svelte';
 
     let { children, view = $bindable('itinerary') }: { children: Snippet, view: string } = $props();
     
-    const tabs = [
-        { id: 'itinerary', label: 'My Trip', icon: Calendar },
-        { id: 'finance', label: 'Expenses', icon: DollarSign }
-    ];
+    let tabs = $derived([
+        { id: 'itinerary', label: i18n.t('nav.myTrip'), icon: Calendar },
+        { id: 'finance', label: i18n.t('nav.expenses'), icon: DollarSign }
+    ]);
 
     // This is a simplification. In a real app, you'd get the current trip differently.
     let currentTrip = $derived(tripStore.trips[0]);
@@ -18,7 +19,7 @@
     <!-- Desktop Sidebar -->
     <aside class="sidebar">
         <div>
-            <div class="logo">Travel Assistant</div>
+            <div class="logo">{i18n.t('nav.travelAssistant')}</div>
             <nav>
                 {#each tabs as tab}
                     <button 
@@ -31,12 +32,21 @@
                 {/each}
             </nav>
         </div>
+        <div class="sidebar-footer">
+            <button class="lang-btn" onclick={() => i18n.toggle()}>
+                <Languages size={20} />
+                <span>{i18n.lang === 'en' ? '中文' : 'English'}</span>
+            </button>
+        </div>
     </aside>
 
     <div class="main-content">
         <!-- Mobile Header -->
         <header class="mobile-header">
             <h1>{tabs.find(t => t.id === view)?.label}</h1>
+            <button class="icon-btn" onclick={() => i18n.toggle()}>
+                <Languages size={20} />
+            </button>
         </header>
 
         <main>
@@ -130,11 +140,21 @@
         border-bottom: 1px solid #e4e4e7;
         background: white;
         color: #18181b;
+        display: flex; /* Changed for alignment */
+        justify-content: space-between;
+        align-items: center;
     }
     
     .mobile-header h1 {
         margin: 0;
         font-size: 1.1rem;
+    }
+
+    /* Hide header only on desktop */
+    @media (min-width: 769px) {
+        .mobile-header {
+            display: none;
+        }
     }
 
     main {
@@ -180,13 +200,25 @@
         border-width: 0;
     }
 
+    .icon-btn {
+        background: none;
+        border: none;
+        padding: 0.5rem;
+        cursor: pointer;
+        color: #71717a;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     @media (max-width: 768px) {
         .sidebar {
             display: none;
         }
         
         .mobile-header {
-            display: block;
+            display: flex; /* Enable flex for mobile header */
         }
         
         .bottom-nav {
@@ -217,5 +249,6 @@
         }
         .bottom-nav button { color: #a1a1aa; }
         .bottom-nav button.active { color: #60a5fa; }
+        .icon-btn { color: #a1a1aa; }
     }
 </style>

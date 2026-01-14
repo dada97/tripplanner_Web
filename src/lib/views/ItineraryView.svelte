@@ -4,6 +4,7 @@
     import LocationSearch from '../components/LocationSearch.svelte';
     import { Plus, Trash2, GripVertical, MapPin, X, Check, MoreVertical, DollarSign, ExternalLink, Edit } from 'lucide-svelte';
     import { calculateDistance } from '../utils/distance';
+    import { i18n } from '../stores/i18nStore.svelte';
 
     let { selectedTripId = $bindable(null) }: { selectedTripId: string | null } = $props();
 
@@ -250,26 +251,26 @@
 <div class="itinerary-view">
     {#if !trip}
         <div class="trip-list">
-            <h2 class="section-title">My Trips</h2>
+            <h2 class="section-title">{i18n.t('trip.myTrips')}</h2>
             {#if trips.length === 0 || isCreating}
                 <div class="create-form card">
-                    <h3>Plan a new trip</h3>
+                    <h3>{i18n.t('trip.planNew')}</h3>
                     <div class="field">
-                        <label for="destination">Destination</label>
+                        <label for="destination">{i18n.t('trip.destination')}</label>
                         <input id="destination" type="text" placeholder="e.g., Tokyo" bind:value={newTripData.destination} />
                     </div>
                     <div class="row">
                         <div class="field">
-                            <label for="start">Start Date</label>
+                            <label for="start">{i18n.t('trip.startDate')}</label>
                             <input id="start" type="date" bind:value={newTripData.startDate} />
                         </div>
                         <div class="field">
-                            <label for="end">End Date</label>
+                            <label for="end">{i18n.t('trip.endDate')}</label>
                             <input id="end" type="date" bind:value={newTripData.endDate} />
                         </div>
                     </div>
                     <div class="field">
-                        <label for="currency">Currency</label>
+                        <label for="currency">{i18n.t('trip.currency')}</label>
                         <select id="currency" bind:value={newTripData.currency}>
                             {#each currencies as c}
                                 <option value={c}>{c} ({currencySymbols[c]})</option>
@@ -277,9 +278,9 @@
                         </select>
                     </div>
                     <div class="actions">
-                        <button onclick={createTrip} class="primary">Create Trip</button>
+                        <button onclick={createTrip} class="primary">{i18n.t('trip.create')}</button>
                         {#if trips.length > 0}
-                            <button class="secondary" onclick={() => isCreating = false}>Cancel</button>
+                            <button class="secondary" onclick={() => isCreating = false}>{i18n.t('trip.cancel')}</button>
                         {/if}
                     </div>
                 </div>
@@ -293,7 +294,7 @@
                     {/each}
                     <button class="add-trip-card" onclick={() => isCreating = true}>
                         <Plus size={32} />
-                        <span>New Trip</span>
+                        <span>{i18n.t('trip.newTrip')}</span>
                     </button>
                 </div>
             {/if}
@@ -301,7 +302,7 @@
     {:else}
         <div class="trip-details">
             <header class="trip-header">
-                <button class="back-btn" onclick={() => selectedTripId = null}>&larr; Trips</button>
+                <button class="back-btn" onclick={() => selectedTripId = null}>&larr; {i18n.t('trip.back')}</button>
                 <h2>{trip.destination}</h2>
                 <span class="dates">{trip.startDate} - {trip.endDate}</span>
             </header>
@@ -315,14 +316,14 @@
                                     class:active={selectedDayIndex === i}
                                     onclick={() => selectedDayIndex = i}
                                 >
-                                    <span class="day-label">Day {i + 1}</span>
+                                    <span class="day-label">{i18n.t('finance.day')} {i + 1}</span>
                                     <span class="date-label">{day.date.slice(5)}</span>
                                 </button>
                             {/each}
                         </div>
                         
                         <div class="day-header-info">
-                            <span class="today-label">DAY {selectedDayIndex + 1}</span>
+                            <span class="today-label">{i18n.t('finance.day').toUpperCase()} {selectedDayIndex + 1}</span>
                             <span class="date-display">{currentDay?.date}</span>
                         </div>
 
@@ -330,13 +331,13 @@
                                                 <div class="actions-bar">
                                                      <button class="add-act-btn" onclick={startAdding}>
                                                         <Plus size={18} />
-                                                        <span>Add Activity</span>
+                                                        <span>{i18n.t('trip.addActivity')}</span>
                                                      </button>
                                                 </div>
                                                 
                                                 <div class="timeline-list">
                                                     {#if currentDay && currentDay.activities.length === 0}
-                                                        <div class="empty-state">No activities yet. Click 'Add Activity' to start planning!</div>
+                                                        <div class="empty-state">{i18n.t('trip.emptyActivities')}</div>
                                                     {/if}
                                                     
                                                                                                          {#if currentDay}
@@ -417,31 +418,31 @@
                     {:else}
                         <div class="edit-view">
                             <div class="edit-header-bar">
-                                <button class="back-link" onclick={() => editingActivity = null}>&larr; Back to list</button>
-                                <h3>{isNewActivity ? 'New Activity' : 'Edit Activity'}</h3>
+                                <button class="back-link" onclick={() => editingActivity = null}>&larr; {i18n.t('trip.backToList')}</button>
+                                <h3>{isNewActivity ? i18n.t('trip.newActivity') : i18n.t('trip.editActivity')}</h3>
                             </div>
                             
                             <div class="edit-form-content">
                                 {#if isNewActivity}
                                     <div class="field search-field">
-                                        <label>Search Location</label>
+                                        <label>{i18n.t('trip.searchLocation')}</label>
                                         <LocationSearch onselect={handleSearchResult} />
                                     </div>
                                 {/if}
 
                                 <div class="field">
-                                    <label for="edit-name">Name</label>
+                                    <label for="edit-name">{i18n.t('trip.name')}</label>
                                     <input id="edit-name" type="text" bind:value={editingActivity.name} />
                                 </div>
 
                                 <div class="field">
-                                    <label for="edit-notes">Notes</label>
+                                    <label for="edit-notes">{i18n.t('trip.notes')}</label>
                                     <textarea id="edit-notes" bind:value={editingActivity.notes} rows="5"></textarea>
                                 </div>
 
                                 {#if editingActivity && editingActivity.expenses.length > 0}
                                     <div class="field">
-                                        <label>Expenses</label>
+                                        <label>{i18n.t('trip.expenses')}</label>
                                         <div class="expense-list">
                                             {#each editingActivity.expenses as expense, i}
                                                 <div class="expense-item">
@@ -453,7 +454,7 @@
                                             {/each}
                                         </div>
                                         <div class="total-actual-cost">
-                                            <strong>Total Actual:</strong>
+                                            <strong>{i18n.t('trip.totalActual')}</strong>
                                             <span>{formatExpenses(editingActivity.expenses)}</span>
                                         </div>
                                     </div>
@@ -466,12 +467,12 @@
                                         editingActivity = null;
                                     }}>
                                         <Trash2 size={20} />
-                                        <span>Delete Activity</span>
+                                        <span>{i18n.t('trip.deleteActivity')}</span>
                                     </button>
                                     
                                     <div class="save-actions">
-                                        <button class="secondary" onclick={() => editingActivity = null}>Cancel</button>
-                                        <button class="primary" onclick={saveEdit}>Save Changes</button>
+                                        <button class="secondary" onclick={() => editingActivity = null}>{i18n.t('trip.cancel')}</button>
+                                        <button class="primary" onclick={saveEdit}>{i18n.t('trip.saveChanges')}</button>
                                     </div>
                                 </div>
                             </div>
@@ -493,11 +494,11 @@
         >
             <button onclick={() => handleMenuAction('edit')}>
                 <Edit size={16} />
-                <span>Edit Plan</span>
+                <span>{i18n.t('trip.editPlan')}</span>
             </button>
             <button onclick={() => handleMenuAction('google')}>
                 <MapPin size={16} />
-                <span>Google Maps</span>
+                <span>{i18n.t('trip.googleMaps')}</span>
             </button>
         </div>
     {/if}
@@ -506,13 +507,13 @@
         <div class="modal-overlay" onclick={() => activityForExpenses = null}>
             <div class="modal" onclick={(e) => e.stopPropagation()}>
                 {#if expenseToEdit}
-                    <h3>{expenseToEdit === 'new' ? 'Add' : 'Edit'} Expense</h3>
+                    <h3>{expenseToEdit === 'new' ? i18n.t('modal.addExpense') : i18n.t('modal.editExpense')}</h3>
                     <div class="field">
-                        <label for="expense-amount">Amount</label>
+                        <label for="expense-amount">{i18n.t('modal.amount')}</label>
                         <input id="expense-amount" type="number" bind:value={currentExpenseData.amount} />
                     </div>
                     <div class="field">
-                        <label for="expense-currency">Currency</label>
+                        <label for="expense-currency">{i18n.t('trip.currency')}</label>
                         <select id="expense-currency" bind:value={currentExpenseData.currency}>
                             {#each currencies as c}
                                 <option value={c}>{c} ({currencySymbols[c]})</option>
@@ -520,27 +521,27 @@
                         </select>
                     </div>
                     <div class="field">
-                        <label for="expense-category">Category</label>
+                        <label for="expense-category">{i18n.t('finance.breakdown')}</label>
                         <select id="expense-category" bind:value={currentExpenseData.category}>
-                            <option value="transport">Transport</option>
-                            <option value="food">Food</option>
-                            <option value="stay">Stay</option>
-                            <option value="shopping">Shop</option>
-                            <option value="other">Other</option>
+                            <option value="transport">{i18n.t('cat.transport')}</option>
+                            <option value="food">{i18n.t('cat.food')}</option>
+                            <option value="stay">{i18n.t('cat.stay')}</option>
+                            <option value="shopping">{i18n.t('cat.shopping')}</option>
+                            <option value="other">{i18n.t('cat.other')}</option>
                         </select>
                     </div>
                     <div class="modal-actions">
-                        <button class="secondary" onclick={() => expenseToEdit = null}>Cancel</button>
-                        <button class="primary" onclick={saveExpense}>Save</button>
+                        <button class="secondary" onclick={() => expenseToEdit = null}>{i18n.t('trip.cancel')}</button>
+                        <button class="primary" onclick={saveExpense}>{i18n.t('modal.save')}</button>
                     </div>
                 {:else}
                     <div class="modal-header">
-                        <h3>Expenses for {activityForExpenses.name}</h3>
+                        <h3>{i18n.t('modal.expensesFor')} {activityForExpenses.name}</h3>
                         <button class="close-btn" onclick={() => activityForExpenses = null}><X size={20}/></button>
                     </div>
                     <div class="expense-list-modal">
                         {#if activityForExpenses.expenses.length === 0}
-                            <p class="empty-list">No expenses logged for this activity.</p>
+                            <p class="empty-list">{i18n.t('modal.noExpenses')}</p>
                         {/if}
                         {#each activityForExpenses.expenses as expense}
                             <div class="expense-item-modal">
@@ -556,7 +557,7 @@
                         {/each}
                     </div>
                      <div class="modal-actions">
-                        <button class="primary" onclick={handleAddNewExpense}>Add New Expense</button>
+                        <button class="primary" onclick={handleAddNewExpense}>{i18n.t('modal.addNewExpense')}</button>
                     </div>
                 {/if}
             </div>
