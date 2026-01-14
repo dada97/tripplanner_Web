@@ -2,8 +2,9 @@
     import { tripStore, type Trip, type DaySchedule, type Activity, type Expense, type ExpenseCategory, generateId, currencies, currencySymbols, type Currency } from '../stores/tripStore.svelte';
     import MapField from '../components/MapField.svelte';
     import LocationSearch from '../components/LocationSearch.svelte';
-    import { Plus, Trash2, GripVertical, MapPin, X, Check, MoreVertical, DollarSign, ExternalLink, Edit, Car, Utensils, Home, ShoppingCart, Package, Heart } from 'lucide-svelte';
+    import { Plus, Trash2, GripVertical, MapPin, X, Check, MoreVertical, DollarSign, ExternalLink, Edit, Car, Utensils, Home, ShoppingCart, Package, Heart, Download } from 'lucide-svelte';
     import { calculateDistance } from '../utils/distance';
+    import { exportTripToHtml } from '../utils/export';
     import { i18n } from '../stores/i18nStore.svelte';
 
     let { tripId }: { tripId: string | null } = $props();
@@ -25,6 +26,20 @@
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     });
+
+    function handleExport() {
+        if (!trip) return;
+        const html = exportTripToHtml(trip);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${trip.destination.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_itinerary.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
     
     // Edit state
     let editingActivity = $state<Activity | null>(null);
@@ -359,7 +374,12 @@
     {:else}
         <div class="trip-details">
             <header class="trip-header">
-                <h2>{trip.destination}</h2>
+                <div class="title-with-actions">
+                    <h2>{trip.destination}</h2>
+                    <button class="icon-btn export-btn" onclick={handleExport} title={i18n.t('journal.export')}>
+                        <Download size={20} />
+                    </button>
+                </div>
             </header>
             
             <div class="content-split">
@@ -915,6 +935,32 @@
         border-color: #d4d4d8;
     }
 
+    .trip-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    .title-with-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .trip-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: white; /* Change title color to white */
+        text-shadow: 0 1px 2px rgba(0,0,0,0.1); /* Subtle shadow for readability if background is light */
+    }
+    .export-btn {
+        color: white;
+        opacity: 0.8;
+        transition: opacity 0.2s;
+    }
+    .export-btn:hover {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
     .content-split { display: flex; gap: 1rem; flex: 1; overflow: hidden; }
     .itinerary-panel { flex: 1; display: flex; flex-direction: column; gap: 1rem; overflow: hidden; }
     .map-panel { flex: 1; border-radius: 1rem; overflow: hidden; border: 1px solid #e4e4e7; }
@@ -1210,6 +1256,10 @@
 
         .edit-header-bar h3 {
             color: #f4f4f5;
+        }
+
+        .trip-header h2 {
+            color: white; /* Maintain white color in dark mode */
         }
 
         .secondary {

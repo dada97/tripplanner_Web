@@ -24,7 +24,7 @@
                 <button class="back-btn" onclick={onBackTrip}> ← {i18n.t('nav.back') || '返回'}</button>
             {/if}
             <div class="logo">
-                <img src="/logo.png" alt="TripFlow Logo" class="logo-img" />
+                <img src="{import.meta.env.BASE_URL}logo.png" alt="TripFlow Logo" class="logo-img" />
                 <span>{i18n.t('nav.travelAssistant')}</span>
             </div>
             <nav>
