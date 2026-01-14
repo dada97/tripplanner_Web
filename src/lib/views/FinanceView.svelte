@@ -1,13 +1,12 @@
 <script lang="ts">
     import { tripStore, type Trip, type Activity, currencySymbols, type ExpenseCategory, type Currency } from '../stores/tripStore.svelte';
     import PieChart from '../components/PieChart.svelte';
-    import { TrendingUp, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Download } from 'lucide-svelte';
+    import { TrendingUp, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Download, Car, Utensils, Home, ShoppingCart, Heart, Package } from 'lucide-svelte';
     import { i18n } from '../stores/i18nStore.svelte';
 
-    let { selectedTripId = $bindable() }: { selectedTripId: string | null } = $props();
+    let { tripId }: { tripId: string | null } = $props();
 
-    let trips = $derived(tripStore.trips);
-    let trip = $derived(selectedTripId ? tripStore.getTrip(selectedTripId) : null);
+    let trip = $derived(tripId ? tripStore.getTrip(tripId) : null);
 
     let viewMode = $state<'all' | 'daily'>('all');
     let selectedDayIndex = $state(0);
@@ -15,7 +14,7 @@
 
     $effect(() => {
         // Reset selection when trip changes
-        if (selectedTripId) {
+        if (tripId) {
             showDayPicker = false;
             
             // Auto-select today if applicable
@@ -62,8 +61,8 @@
 
         // --- PART 1: SUMMARY ---
         csvContent += `${i18n.t('csv.summary')}\n`;
-        // Header: Currency, Transport, Food, Stay, Shopping, Other, Total
-        const categories: ExpenseCategory[] = ['transport', 'food', 'stay', 'shopping', 'other'];
+        // Header: Currency, Transport, Food, Stay, Shopping, Medical, Other, Total
+        const categories: ExpenseCategory[] = ['transport', 'food', 'stay', 'shopping', 'medical', 'other'];
         const headers = [
             i18n.t('csv.headers.currency'), 
             ...categories.map(c => i18n.t(`cat.${c}`)),
@@ -102,7 +101,7 @@
                 act.expenses.forEach(exp => {
                     const row = [
                         day.date,
-                        `${i18n.t('finance.day')} ${dayIndex + 1}`,
+                        i18n.day(dayIndex + 1),
                         `"${act.name.replace(/"/g, '""')}"`, // Escape quotes
                         i18n.t(`cat.${exp.category}`),
                         exp.currency || trip?.currency || 'USD',
@@ -113,6 +112,22 @@
                 });
             });
         });
+
+        // Add General Expenses
+        if (trip.generalExpenses) {
+            trip.generalExpenses.forEach(exp => {
+                const row = [
+                    exp.date || '',
+                    'General',
+                    `"${(exp.name || '').replace(/"/g, '""')}"`,
+                    i18n.t(`cat.${exp.category}`),
+                    exp.currency || trip?.currency || 'USD',
+                    exp.amount,
+                    ''
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+        }
 
         // Trigger Download
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -129,7 +144,6 @@
     let stats = $derived.by(() => {
         if (!trip) return null;
 
-        let totalEstimated = 0;
         const expenseList: Array<any> = [];
         // Group by currency
         const actuals: Record<string, { total: number, breakdown: Record<ExpenseCategory, number> }> = {};
@@ -144,6 +158,7 @@
                         food: 0,
                         stay: 0,
                         shopping: 0,
+                        medical: 0,
                         other: 0
                     }
                 };
@@ -154,14 +169,12 @@
         // Group expenses by date
         const expensesByDate: Record<string, typeof expenseList> = {};
         
+        // Process daily activities
         trip.days.forEach((day, index) => {
             // Filter by day if in daily mode
             if (viewMode === 'daily' && index !== selectedDayIndex) return;
 
             day.activities.forEach(act => {
-                // Estimated is assumed to be in Trip Currency
-                totalEstimated += act.estimatedCost || 0;
-
                 act.expenses.forEach(expense => {
                     const curr = expense.currency || trip?.currency || 'USD';
                     const stats = getCurrencyStats(curr);
@@ -184,6 +197,32 @@
                 });
             });
         });
+
+        // Process general expenses (only in 'all' view or if we add a 'general' view mode later)
+        if (viewMode === 'all' && trip.generalExpenses) {
+            trip.generalExpenses.forEach(expense => {
+                const curr = expense.currency || trip?.currency || 'USD';
+                const stats = getCurrencyStats(curr);
+                stats.total += expense.amount;
+                if (stats.breakdown[expense.category] !== undefined) {
+                    stats.breakdown[expense.category] += expense.amount;
+                } else {
+                    stats.breakdown.other += expense.amount;
+                }
+
+                // Add to grouped list using expense date
+                const date = expense.date || 'General';
+                if (!expensesByDate[date]) {
+                    expensesByDate[date] = [];
+                }
+                expensesByDate[date].push({
+                    ...expense,
+                    activityName: expense.name || i18n.t('cat.other'), // Use expense name or category as activity name
+                    currency: curr as Currency,
+                    isGeneral: true
+                });
+            });
+        }
         
         // Convert to array and sort dates descending
         const groupedExpenses = Object.entries(expensesByDate)
@@ -194,18 +233,27 @@
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return {
-            totalEstimated,
             actuals,
             groupedExpenses
         };
     });
 
     const categoryColors: Record<string, string> = {
-        transport: '#3b82f6', // blue-500
-        food: '#f59e0b',      // amber-500
-        stay: '#8b5cf6',      // violet-500
-        shopping: '#ec4899',  // pink-500
-        other: '#6b7280'      // gray-500
+        transport: '#f97316',  // orange-500
+        food: '#ef4444',       // red-500
+        stay: '#8b5cf6',       // violet-500
+        shopping: '#ec4899',   // pink-500
+        medical: '#e91e63',    // pink-600
+        other: '#64748b'       // slate-500
+    };
+
+    const categoryIcons: Record<string, any> = {
+        transport: Car,
+        food: Utensils,
+        stay: Home,
+        shopping: ShoppingCart,
+        medical: Heart,
+        other: Package
     };
 
     let categoryLabels = $derived({
@@ -213,31 +261,17 @@
         food: i18n.t('cat.food'),
         stay: i18n.t('cat.stay'),
         shopping: i18n.t('cat.shopping'),
+        medical: i18n.t('cat.medical'),
         other: i18n.t('cat.other')
     });
 </script>
 
 <div class="finance-view">
     {#if !trip}
-        <div class="trip-selection">
-            <h2>{i18n.t('finance.selectTrip')}</h2>
-            {#if trips.length === 0}
-                <p class="empty-msg">{i18n.t('finance.noTrips')}</p>
-            {:else}
-                <div class="grid">
-                    {#each trips as t}
-                        <button class="card" onclick={() => selectedTripId = t.id}>
-                            <h3>{t.destination}</h3>
-                            <div class="dates">{t.startDate}</div>
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-        </div>
+        <div class="empty-state"><p>请选择行程</p></div>
     {:else}
         <header>
             <div class="header-top">
-                <button class="back-link" onclick={() => selectedTripId = null}>&larr; {i18n.t('finance.back')}</button>
                 <div class="header-title-row">
                     <h2>{trip.destination} {i18n.t('finance.finances')}</h2>
                     <button class="export-btn" onclick={exportToCSV} title={i18n.t('csv.export')}>
@@ -277,7 +311,7 @@
                                 class="day-toggle" 
                                 onclick={() => showDayPicker = !showDayPicker}
                             >
-                                <span class="day-label">{i18n.t('finance.day')} {selectedDayIndex + 1}</span>
+                                <span class="day-label">{i18n.day(selectedDayIndex + 1)}</span>
                                 <span class="date-label">{trip.days[selectedDayIndex].date}</span>
                             </button>
 
@@ -288,12 +322,12 @@
                                             class="day-option {i === selectedDayIndex ? 'selected' : ''}"
                                             onclick={() => selectDay(i)}
                                         >
-                                            <span class="day-num">{i18n.t('finance.day')} {i + 1}</span>
+                                            <span class="day-num">{i18n.day(i + 1)}</span>
                                             <span class="day-date">{day.date}</span>
                                         </button>
                                     {/each}
                                 </div>
-                                <div class="backdrop" onclick={() => showDayPicker = false}></div>
+                                <button class="backdrop" onclick={() => showDayPicker = false} aria-label="close day picker"></button>
                             {/if}
                         </div>
 
@@ -311,13 +345,6 @@
 
         <div class="dashboard-grid">
             <!-- Main Stats Cards -->
-            <div class="stat-card">
-                <div class="label">{i18n.t('finance.totalEstimated')} ({currencySymbols[trip.currency]})</div>
-                <div class="value">
-                    {currencySymbols[trip.currency]}{stats?.totalEstimated.toLocaleString()}
-                </div>
-            </div>
-            
             <div class="stat-card">
                 <div class="label">{i18n.t('finance.totalActual')}</div>
                 <div class="value-list">
@@ -353,11 +380,15 @@
                             </div>
                             <div class="breakdown-list">
                                 {#each Object.entries(data.breakdown) as [cat, val]}
+                                    {@const IconComponent = categoryIcons[cat]}
                                     <div class="breakdown-item">
                                         <div class="cat-info">
-                                            <span class="cat-label" style="color: {categoryColors[cat]}">
-                                                {categoryLabels[cat as keyof typeof categoryLabels]}
-                                            </span>
+                                            <div class="cat-label-group">
+                                                <IconComponent size={18} style="color: {categoryColors[cat]}" />
+                                                <span class="cat-label">
+                                                    {categoryLabels[cat as keyof typeof categoryLabels]}
+                                                </span>
+                                            </div>
                                             <span class="cat-values">
                                                 <span class="actual">{currencySymbols[curr as Currency] || '$'}{val.toLocaleString()}</span>
                                             </span>
@@ -388,12 +419,14 @@
                             <div class="date-group">
                                 <div class="date-header">{group.date}</div>
                                 {#each group.items as exp}
+                                    {@const IconComponent = categoryIcons[exp.category]}
                                     <div class="expense-row">
                                         <div class="exp-main">
                                             <span class="exp-activity">{exp.activityName}</span>
-                                            <span class="exp-cat" style="background-color: {categoryColors[exp.category]}15; color: {categoryColors[exp.category]}">
-                                                {categoryLabels[exp.category as keyof typeof categoryLabels]}
-                                            </span>
+                                            <div class="exp-cat" style="background-color: {categoryColors[exp.category]}15; color: {categoryColors[exp.category]}">
+                                                <IconComponent size={14} />
+                                                <span>{categoryLabels[exp.category as keyof typeof categoryLabels]}</span>
+                                            </div>
                                         </div>
                                         <div class="exp-amount">
                                             <span class="amt">{currencySymbols[exp.currency as Currency]}{exp.amount.toLocaleString()}</span>
@@ -417,20 +450,7 @@
         box-sizing: border-box;
     }
 
-    .trip-selection {
-        max-width: 600px;
-        margin: 0 auto;
-        text-align: center;
-    }
-    
-    .empty-msg { color: #71717a; }
 
-    .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 2rem;
-    }
     
     .card {
         background: white;
@@ -453,18 +473,6 @@
         flex-direction: column;
         gap: 0.5rem;
     }
-    
-    .back-link {
-        align-self: flex-start;
-        background: none;
-        border: none;
-        padding: 0;
-        color: #71717a;
-        cursor: pointer;
-        font-size: 0.9rem;
-    }
-    
-    .back-link:hover { color: #2563eb; }
     
     h2 { margin: 0; }
 
@@ -523,10 +531,20 @@
     .cat-info {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         font-size: 0.95rem;
     }
     
-    .cat-label { font-weight: 500; }
+    .cat-label-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .cat-label { 
+        font-weight: 500;
+        color: #18181b;
+    }
     .cat-values { color: #71717a; font-size: 0.9rem; }
     .cat-values .actual { color: #18181b; font-weight: 500; }
     
@@ -600,12 +618,15 @@
     }
 
     .exp-cat {
-        font-size: 0.75rem;
-        padding: 0.15rem 0.5rem;
-        border-radius: 9999px;
-        width: fit-content;
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
         font-weight: 500;
         text-transform: capitalize;
+        width: fit-content;
     }
 
     .exp-amount {
@@ -644,11 +665,13 @@
 
             .value, .curr-total { color: #f4f4f5; }
 
-            .label, .cat-values, .empty-msg { color: #a1a1aa; }
+            .label, .cat-values { color: #a1a1aa; }
 
             .cat-values .actual { color: #f4f4f5; }
 
             .mini-track { background: #27272a; }
+
+            .cat-label { color: #f4f4f5; }
 
             
 
@@ -656,21 +679,21 @@
 
             .toggle-btn { color: #a1a1aa; }
 
-            .toggle-btn.active { background: #3f3f46; color: #f4f4f5; }
+            .toggle-btn.active { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #f4f4f5; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3); }
 
             
 
-            .nav-btn { background: #18181b; border-color: #27272a; color: #e4e4e7; }
+            .nav-btn { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border-color: #3f3f46; color: #60a5fa; }
 
-            .nav-btn:disabled { background: #27272a; color: #52525b; border-color: #27272a; }
+            .nav-btn:disabled { background: #3f3f46; color: #52525b; border-color: #3f3f46; }
 
-            .nav-btn:not(:disabled):hover { background: #27272a; }
+            .nav-btn:not(:disabled):hover { background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border-color: #60a5fa; }
 
             
 
-            .day-toggle { background: #18181b; border-color: #27272a; color: #f4f4f5; }
+            .day-toggle { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border-color: #3f3f46; color: #f4f4f5; }
 
-            .day-toggle:hover { border-color: #3b82f6; background: #27272a; }
+            .day-toggle:hover { border-color: #60a5fa; background: linear-gradient(135deg, #1f2937 0%, #111827 100%); }
 
             .date-label { color: #a1a1aa; }
 
@@ -678,9 +701,9 @@
 
             .day-picker-dropdown { 
 
-                background: #18181b; 
+                background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); 
 
-                border-color: #27272a; 
+                border-color: #3f3f46; 
 
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 
@@ -688,9 +711,9 @@
 
             .day-option { color: #e4e4e7; }
 
-            .day-option:hover { background: #27272a; }
+            .day-option:hover { background: #3f3f46; }
 
-            .day-option.selected { background: #1e3a8a; color: #60a5fa; }
+            .day-option.selected { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: #60a5fa; }
 
             .day-option .day-date { color: #a1a1aa; }
 
@@ -790,11 +813,11 @@
 
         .toggle-group {
         display: flex;
-        background: #f4f4f5;
+        background: linear-gradient(135deg, #27272a 0%, #1f2937 100%);
         padding: 0.25rem;
         border-radius: 0.75rem;
         width: fit-content;
-        border: 1px solid #e4e4e7;
+        border: 1px solid #3f3f46;
     }
 
     .toggle-btn {
@@ -804,15 +827,15 @@
         border-radius: 0.5rem;
         font-size: 0.9rem;
         font-weight: 500;
-        color: #71717a;
+        color: #a1a1aa;
         cursor: pointer;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .toggle-btn.active {
-        background: white;
-        color: #18181b;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
     }
 
     .day-navigator {
@@ -825,28 +848,29 @@
     }
 
     .nav-btn {
-        background: white;
-        border: 1px solid #e4e4e7;
+        background: linear-gradient(135deg, #27272a 0%, #1f2937 100%);
+        border: 1px solid #3f3f46;
         padding: 0.6rem 0.8rem;
         cursor: pointer;
-        color: #18181b;
+        color: #60a5fa;
         border-radius: 0.75rem;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: all 0.2s;
+        font-weight: 500;
     }
 
     .nav-btn:disabled {
-        background: #f4f4f5;
-        color: #d4d4d8;
-        border-color: #f4f4f5;
+        background: #3f3f46;
+        color: #6b7280;
+        border-color: #52525b;
         cursor: not-allowed;
     }
 
     .nav-btn:not(:disabled):hover {
-        background: #f4f4f5;
-        border-color: #d4d4d8;
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        border-color: #60a5fa;
     }
 
     .current-day-display {
@@ -856,8 +880,8 @@
     }
 
     .day-toggle {
-        background: white;
-        border: 1px solid #e4e4e7;
+        background: linear-gradient(135deg, #27272a 0%, #1f2937 100%);
+        border: 1px solid #3f3f46;
         padding: 0.5rem 1rem;
         cursor: pointer;
         display: flex;
@@ -866,23 +890,24 @@
         border-radius: 0.75rem;
         width: 100%;
         transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        color: #f4f4f5;
     }
 
     .day-toggle:hover {
-        border-color: #2563eb;
-        background: #f8fafc;
+        border-color: #60a5fa;
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
     }
 
     .day-label {
         font-weight: 700;
         font-size: 0.95rem;
-        color: #18181b;
+        color: #f4f4f5;
     }
 
     .date-label {
         font-size: 0.75rem;
-        color: #64748b;
+        color: #9ca3af;
         margin-top: 1px;
     }
 
@@ -891,10 +916,10 @@
         top: calc(100% + 0.75rem);
         left: 50%;
         transform: translateX(-50%);
-        background: white;
-        border: 1px solid #e4e4e7;
+        background: linear-gradient(135deg, #27272a 0%, #1f2937 100%);
+        border: 1px solid #3f3f46;
         border-radius: 1rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
         max-height: 240px;
         overflow-y: auto;
         z-index: 20;
@@ -920,22 +945,23 @@
         justify-content: space-between;
         align-items: center;
         border-radius: 0.5rem;
-        color: #18181b;
+        color: #d1d5db;
         transition: all 0.15s;
+        font-weight: 500;
     }
 
     .day-option:hover {
-        background: #f1f5f9;
+        background: #3f3f46;
     }
 
     .day-option.selected {
-        background: #eff6ff;
-        color: #2563eb;
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        color: #60a5fa;
         font-weight: 600;
     }
 
     .day-option .day-num { font-size: 0.9rem; }
-    .day-option .day-date { font-size: 0.75rem; color: #64748b; }
+    .day-option .day-date { font-size: 0.75rem; color: #9ca3af; }
 
     .backdrop {
         position: fixed;
@@ -945,6 +971,9 @@
         bottom: 0;
         z-index: 10;
         background: rgba(0,0,0,0.02);
+        border: none;
+        padding: 0;
+        cursor: default;
     }
 
     @media (min-width: 640px) {

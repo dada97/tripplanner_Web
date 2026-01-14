@@ -3,10 +3,9 @@
     import { i18n } from '../stores/i18nStore.svelte';
     import { ChevronLeft, ChevronRight, Sun, Cloud, CloudRain, CloudSnow, Wind, Plus, MapPin, Clock, Edit, Trash2, X, Image as ImageIcon, Download } from 'lucide-svelte';
 
-    let { selectedTripId = $bindable() }: { selectedTripId: string | null } = $props();
+    let { tripId }: { tripId: string | null } = $props();
 
-    let trips = $derived(tripStore.trips);
-    let trip = $derived(selectedTripId ? tripStore.getTrip(selectedTripId) : null);
+    let trip = $derived(tripId ? tripStore.getTrip(tripId) : null);
     
     let selectedDayIndex = $state(0);
     let showDayPicker = $state(false);
@@ -74,8 +73,8 @@
         let html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${trip.destination} Journal</title><style>${style}</style></head><body><div class="container"><h1>${escapeHtml(trip.destination)}</h1><div class="dates">${trip.startDate} — ${trip.endDate}</div>`;
 
         trip.days.forEach((day, index) => {
-            if (!day.journals || day.journals.length === 0) return;
-            html += `<div class="day-section"><div class="day-header">${i18n.t('finance.day')} ${index + 1} - ${day.date}</div>`;
+            if (day.journals.length === 0) return;
+            html += `<div class="day-section"><div class="day-header">${i18n.day(index + 1)} - ${day.date}</div>`;
             const sortedJournals = [...day.journals].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
             sortedJournals.forEach(entry => {
                 html += `<div class="entry-card"><div class="entry-header"><div class="meta"><span>🕒 ${entry.timestamp}</span>${entry.location ? `<span>📍 ${escapeHtml(entry.location)}</span>` : ''}</div>${entry.weather ? `<div class="weather-badge">${i18n.t(`journal.${entry.weather}`)}</div>` : ''}</div>${entry.photos && entry.photos.length > 0 ? `<div class="photos">${entry.photos.map(p => `<img src="${p}" loading="lazy" />`).join('')}</div>` : ''}<div class="content">${escapeHtml(entry.content)}</div></div>`;
@@ -194,7 +193,7 @@
     }
 
     $effect(() => {
-        if (selectedTripId) {
+        if (tripId) {
             showDayPicker = false;
             if (trip) {
                 const today = new Date();
@@ -227,47 +226,36 @@
 
 <div class="journal-view">
     {#if !trip}
-        <div class="trip-selection">
-            <h2>{i18n.t('journal.selectTrip')}</h2>
-            {#if trips.length === 0}
-                <p class="empty-msg">{i18n.t('finance.noTrips')}</p>
-            {:else}
-                <div class="grid">
-                    {#each trips as t}
-                        <button class="card" onclick={() => selectedTripId = t.id}>
-                            <h3>{t.destination}</h3>
-                            <div class="dates">{t.startDate}</div>
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-        </div>
+        <div class="empty-state"><p>请选择行程</p></div>
     {:else}
         <header>
-            <div class="header-top">
-                <button class="back-link" onclick={() => selectedTripId = null}>&larr; {i18n.t('journal.back')}</button>
-                <div class="header-title-row">
-                    <h2>{trip.destination} {i18n.t('journal.title')}</h2>
-                    <button class="export-btn" onclick={exportToHTML} title={i18n.t('journal.export')}>
-                        <Download size={20} />
-                    </button>
-                </div>
+            <div class="header-title-row">
+                <h2>{trip.destination} {i18n.t('journal.title')}</h2>
+                <button class="export-btn" onclick={exportToHTML} title={i18n.t('journal.export')}>
+                    <Download size={20} />
+                </button>
             </div>
             
             <div class="day-navigator">
                 <button class="nav-btn" disabled={selectedDayIndex === 0} onclick={prevDay}><ChevronLeft size={20} /></button>
                 <div class="current-day-display">
-                    <button class="day-toggle" onclick={() => showDayPicker = !showDayPicker}>
-                        <span class="day-label">{i18n.t('finance.day')} {selectedDayIndex + 1}</span>
-                        <span class="date-label">{trip.days[selectedDayIndex].date}</span>
-                    </button>
+                                                <button 
+                                                    class="day-toggle" 
+                                                    onclick={() => showDayPicker = !showDayPicker}
+                                                >
+                                                    <span class="day-label">{i18n.day(selectedDayIndex + 1)}</span>
+                                                    <span class="date-label">{trip.days[selectedDayIndex].date}</span>
+                                                </button>
                     {#if showDayPicker}
                         <div class="day-picker-dropdown">
                             {#each trip.days as day, i}
-                                <button class="day-option {i === selectedDayIndex ? 'selected' : ''}" onclick={() => selectDay(i)}>
-                                    <span class="day-num">{i18n.t('finance.day')} {i + 1}</span>
-                                    <span class="day-date">{day.date}</span>
-                                </button>
+                                                                        <button 
+                                                                            class="day-option {i === selectedDayIndex ? 'selected' : ''}"
+                                                                            onclick={() => selectDay(i)}
+                                                                        >
+                                                                            <span class="day-num">{i18n.day(i + 1)}</span>
+                                                                            <span class="day-date">{day.date}</span>
+                                                                        </button>
                             {/each}
                         </div>
                         <div class="backdrop" role="button" tabindex="0" onclick={() => showDayPicker = false} onkeydown={(e) => e.key === 'Escape' && (showDayPicker = false)}></div>
@@ -380,7 +368,7 @@
                         <div class="field content-field"><textarea placeholder={i18n.t('journal.placeholder')} bind:value={entryContent}></textarea></div>
                     </div>
                     <div class="editor-footer">
-                        {#if editingEntry}<button class="icon-btn danger" onclick={deleteEntry}><Trash2 size={20} /></button>{:else}<div></div>{/if}
+                        {#if editingEntry}<button class="icon-btn danger" onclick={deleteEntry}><Trash2 size={20} />刪除</button>{:else}<div></div>{/if}
                         <button class="primary-btn" onclick={saveEntry}>{i18n.t('modal.save')}</button>
                     </div>
                 </div>
@@ -390,36 +378,27 @@
 </div>
 
 <style>
-    .journal-view { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-    .trip-selection { max-width: 600px; margin: 0 auto; text-align: center; padding: 1.5rem; overflow-y: auto; height: 100%; }
-    .empty-msg { color: #71717a; text-align: center; margin-top: 2rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 2rem; }
-    .card { background: white; border: 1px solid #e4e4e7; border-radius: 0.75rem; padding: 1.25rem; text-align: left; cursor: pointer; transition: transform 0.2s; }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     header { padding: 1.5rem 1.5rem 1rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; flex-shrink: 0; border-bottom: 1px solid #f4f4f5; background: white; z-index: 10; }
-    .header-top { width: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
     .header-title-row { display: flex; align-items: center; justify-content: center; gap: 1rem; position: relative; }
     .export-btn { background: transparent; border: none; padding: 0.5rem; color: #71717a; cursor: pointer; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
     .export-btn:hover { background: #f4f4f5; color: #18181b; }
-    .back-link { align-self: flex-start; background: none; border: none; padding: 0; color: #71717a; cursor: pointer; font-size: 0.9rem; }
-    .back-link:hover { color: #2563eb; }
     h2 { margin: 0; text-align: center; }
     .day-navigator { display: flex; align-items: center; justify-content: center; gap: 0.75rem; width: 100%; max-width: 400px; }
-    .nav-btn { background: white; border: 1px solid #e4e4e7; padding: 0.6rem 0.8rem; cursor: pointer; color: #18181b; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-    .nav-btn:disabled { background: #f4f4f5; color: #d4d4d8; border-color: #f4f4f5; cursor: not-allowed; }
-    .nav-btn:not(:disabled):hover { background: #f4f4f5; border-color: #d4d4d8; }
+    .nav-btn { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border: 1px solid #3f3f46; padding: 0.6rem 0.8rem; cursor: pointer; color: #60a5fa; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-weight: 500; }
+    .nav-btn:disabled { background: #3f3f46; color: #6b7280; border-color: #52525b; cursor: not-allowed; }
+    .nav-btn:not(:disabled):hover { background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border-color: #60a5fa; }
     .current-day-display { position: relative; flex: 1; max-width: 200px; }
-    .day-toggle { background: white; border: 1px solid #e4e4e7; padding: 0.5rem 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; border-radius: 0.75rem; width: 100%; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-    .day-toggle:hover { border-color: #2563eb; background: #f8fafc; }
-    .day-label { font-weight: 700; font-size: 0.95rem; color: #18181b; }
-    .date-label { font-size: 0.75rem; color: #64748b; margin-top: 1px; }
-    .day-picker-dropdown { position: absolute; top: calc(100% + 0.75rem); left: 50%; transform: translateX(-50%); background: white; border: 1px solid #e4e4e7; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); max-height: 240px; overflow-y: auto; z-index: 20; min-width: 220px; display: flex; flex-direction: column; padding: 0.5rem; animation: slideDown 0.2s ease-out; }
+    .day-toggle { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border: 1px solid #3f3f46; padding: 0.5rem 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; border-radius: 0.75rem; width: 100%; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.3); color: #f4f4f5; }
+    .day-toggle:hover { border-color: #60a5fa; background: linear-gradient(135deg, #1f2937 0%, #111827 100%); }
+    .day-label { font-weight: 700; font-size: 0.95rem; color: #f4f4f5; }
+    .date-label { font-size: 0.75rem; color: #9ca3af; margin-top: 1px; }
+    .day-picker-dropdown { position: absolute; top: calc(100% + 0.75rem); left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border: 1px solid #3f3f46; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); max-height: 240px; overflow-y: auto; z-index: 20; min-width: 220px; display: flex; flex-direction: column; padding: 0.5rem; animation: slideDown 0.2s ease-out; }
     @keyframes slideDown { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
-    .day-option { background: none; border: none; padding: 0.75rem 1rem; text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 0.5rem; color: #18181b; transition: all 0.15s; }
-    .day-option:hover { background: #f1f5f9; }
-    .day-option.selected { background: #eff6ff; color: #2563eb; font-weight: 600; }
+    .day-option { background: none; border: none; padding: 0.75rem 1rem; text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 0.5rem; color: #d1d5db; transition: all 0.15s; font-weight: 500; }
+    .day-option:hover { background: #3f3f46; }
+    .day-option.selected { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: #60a5fa; font-weight: 600; }
     .day-option .day-num { font-size: 0.9rem; }
-    .day-option .day-date { font-size: 0.75rem; color: #64748b; }
+    .day-option .day-date { font-size: 0.75rem; color: #9ca3af; }
     .backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; background: rgba(0,0,0,0.02); }
 
     .journal-list { flex: 1; display: grid; grid-template-columns: 1fr; gap: 1.5rem; padding: 1rem 1.5rem 6rem 1.5rem; overflow-y: auto; overflow-x: hidden; align-content: start; }
@@ -432,7 +411,7 @@
     .card-header-info { display: flex; justify-content: space-between; align-items: flex-start; }
     .time { font-weight: 700; font-size: 1.1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
     .journal-card.no-photo .time { color: #3b82f6; text-shadow: none; }
-    .weather-icon { background: rgba(255,255,255,0.2); backdrop-filter: blur(4px); padding: 0.4rem; border-radius: 50%; display: flex; }
+    .weather-icon { background: rgba(255,255,255,0.2); backdrop-filter: blur(4px); padding: 0.4rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
     .journal-card.no-photo .weather-icon { background: #e2e8f0; color: #f59e0b; }
     .card-footer-info { display: flex; flex-direction: column; gap: 0.35rem; }
     .location-row { display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
@@ -441,10 +420,10 @@
     .card-content { margin: 0; font-size: 0.95rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
     .journal-card.no-photo .card-content { color: #334155; text-shadow: none; -webkit-line-clamp: 8; line-clamp: 8; }
 
-    .fab { position: absolute; bottom: 2.5rem; right: 2.5rem; width: 3.5rem; height: 3.5rem; border-radius: 1.25rem; background: #2563eb; color: white; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px -4px rgba(37, 99, 235, 0.4); cursor: pointer; transition: all 0.2s; z-index: 100; }
+    .fab { position: fixed; bottom: 4.0rem; right: 2.5rem; width: 3.5rem; height: 3.5rem; border-radius: 1.25rem; background: #2563eb; color: white; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px -4px rgba(37, 99, 235, 0.4); cursor: pointer; transition: all 0.2s; z-index: 100; }
     .fab:hover { transform: scale(1.05) rotate(90deg); background: #1d4ed8; }
     .editor-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 1rem; backdrop-filter: blur(4px); }
-    .editor-modal { background: white; width: 100%; max-width: 600px; border-radius: 1.25rem; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; }
+    .editor-modal { background: white; width: 100%; max-width: 700px; border-radius: 1.25rem; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; }
     .editor-header { padding: 1.25rem; border-bottom: 1px solid #e4e4e7; display: flex; justify-content: space-between; align-items: center; }
     .editor-header h3 { margin: 0; font-size: 1.1rem; font-weight: 700; }
     .close-btn { background: transparent; border: none; padding: 0.5rem; cursor: pointer; color: #71717a; border-radius: 0.5rem; }
@@ -457,33 +436,32 @@
     .viewer-content { white-space: pre-wrap; line-height: 1.75; color: #18181b; font-size: 1.05rem; }
     .viewer-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
     .viewer-photos img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 0.75rem; }
-    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem; max-height: 180px; overflow-y: auto; padding: 0.5rem 0; }
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; max-height: 220px; overflow-y: auto; padding: 0.5rem 0; }
     .photo-thumb { position: relative; aspect-ratio: 1; }
     .photo-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.5rem; }
     .remove-photo { position: absolute; top: 0.25rem; right: 0.25rem; background: rgba(239, 68, 68, 0.95); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); }
     .remove-photo:hover { background: #dc2626; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); }
     .add-photo-btn { aspect-ratio: 1; border: 2px dashed #e4e4e7; border-radius: 0.75rem; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #71717a; cursor: pointer; font-size: 0.8rem; gap: 0.25rem; }
-    .row { display: flex; gap: 1rem; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
     .field { display: flex; flex-direction: column; gap: 0.5rem; }
     fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
     legend { font-size: 0.85rem; font-weight: 600; color: #71717a; text-transform: uppercase; padding: 0; }
-    .time-field { width: 130px; }
-    .loc-field { flex: 1; }
+    .time-field { flex: 1; min-width: 130px; }
+    .loc-field { flex: 1; min-width: 130px; }
     .field label { font-size: 0.85rem; font-weight: 600; color: #71717a; text-transform: uppercase; }
     .input-wrap { display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; padding: 0.6rem 0.75rem; border-radius: 0.75rem; border: 1.5px solid #e2e8f0; }
-    .input-wrap input { border: none; background: transparent; outline: none; font-size: 0.95rem; width: 100%; color: #1e293b; }
-    .weather-options { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .weather-btn { background: #f8fafc; border: 1.5px solid #e2e8f0; padding: 0.6rem; border-radius: 0.75rem; color: #64748b; cursor: pointer; }
+    .input-wrap input { border: none; background: transparent; outline: none; font-size: 0.95rem; width: 100%; color: #ffffff; }
+    .weather-options { display: flex; gap: 0.5rem; flex-wrap: wrap; padding: 8px 0px; }
+    .weather-btn { background: #f8fafc; border: 1.5px solid #e2e8f0; padding: 0.6rem; border-radius: 0.75rem; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .weather-btn.active { background: #eff6ff; color: #2563eb; border-color: #3b82f6; }
-    .content-field { flex: 1; min-height: 100px; max-height: 180px; display: flex; flex-direction: column; }
+    .content-field { flex: 1; min-height: 150px; max-height: 300px; display: flex; flex-direction: column; }
     .content-field textarea { width: 100%; height: 100%; border: 1.5px solid #e2e8f0; resize: none; font-size: 1rem; line-height: 1.6; outline: none; font-family: inherit; color: #1e293b; padding: 1rem; background: #f8fafc; border-radius: 0.75rem; box-sizing: border-box; }
-    .editor-footer { padding: 1.25rem; border-top: 1px solid #e4e4e7; display: flex; justify-content: space-between; align-items: center; }
-    .icon-btn.danger { background: #fee2e2; color: #ef4444; border: none; padding: 0.6rem; border-radius: 0.75rem; cursor: pointer; }
-    .primary-btn { background: #2563eb; color: white; border: none; padding: 0.75rem 2rem; border-radius: 0.75rem; cursor: pointer; font-weight: 600; }
+    .editor-footer { padding: 1.25rem; border-top: 1px solid #e4e4e7; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .icon-btn.danger { background: #fee2e2; color: #ef4444; border: none; padding: 0.75rem 2rem; border-radius: 0.75rem; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .primary-btn { background: #2563eb; color: white; border: none; padding: 0.75rem 2rem; border-radius: 0.75rem; cursor: pointer; font-weight: 600; flex-shrink: 0; }
 
     @media (min-width: 768px) {
         header { flex-direction: row; justify-content: space-between; align-items: flex-end; padding: 1.5rem 2rem 1rem 2rem; }
-        .header-top { width: auto; align-items: flex-start; }
         .header-title-row { justify-content: flex-start; }
         .export-btn { position: static; transform: none; }
         .journal-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); padding: 2rem 2.5rem 6rem 2.5rem; gap: 2rem; }
@@ -491,15 +469,19 @@
 
     @media (prefers-color-scheme: dark) {
         header { background: #18181b; border-bottom-color: #27272a; }
-        .card, .journal-card, .editor-modal { background: #18181b; border-color: #27272a; }
-        .empty-msg { color: #a1a1aa; }
-        .nav-btn { background: #18181b; border-color: #27272a; color: #e4e4e7; }
-        .nav-btn:disabled { background: #27272a; color: #52525b; border-color: #27272a; }
-        .day-toggle { background: #18181b; border-color: #27272a; color: #f4f4f5; }
-        .day-label, .card-content, .editor-modal h3, .input-wrap input, .viewer-content { color: #f4f4f5; }
-        .day-picker-dropdown { background: #18181b; border-color: #27272a; }
+        .journal-card, .editor-modal { background: #18181b; border-color: #27272a; }
+        .nav-btn { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border-color: #3f3f46; color: #60a5fa; }
+        .nav-btn:disabled { background: #3f3f46; color: #6b7280; border-color: #52525b; }
+        .nav-btn:not(:disabled):hover { background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border-color: #60a5fa; }
+        .day-toggle { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border-color: #3f3f46; color: #f4f4f5; }
+        .day-toggle:hover { border-color: #60a5fa; background: linear-gradient(135deg, #1f2937 0%, #111827 100%); }
+        .day-label { color: #f4f4f5; }
+        .date-label { color: #a1a1aa; }
+        .day-picker-dropdown { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border-color: #3f3f46; }
         .day-option { color: #e4e4e7; }
-        .day-option.selected { background: #1e3a8a; color: #60a5fa; }
+        .day-option:hover { background: #3f3f46; }
+        .day-option.selected { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: #60a5fa; }
+        .day-option .day-date { color: #a1a1aa; }
         .editor-header, .editor-footer, .input-wrap, .viewer-meta, .add-photo-btn { border-color: #27272a; }
         .input-wrap, .weather-btn { background: #27272a; border-color: #3f3f46; }
         .weather-btn.active { background: #1e3a8a; color: #60a5fa; border-color: #1e40af; }

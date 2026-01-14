@@ -4,7 +4,7 @@
     import { tripStore } from '../stores/tripStore.svelte';
     import { i18n } from '../stores/i18nStore.svelte';
 
-    let { children, view = $bindable('itinerary') }: { children: Snippet, view: string } = $props();
+    let { children, view = $bindable('itinerary'), hasTrip = false, onBackTrip }: { children: Snippet, view: string, hasTrip?: boolean, onBackTrip?: () => void } = $props();
     
     let tabs = $derived([
         { id: 'itinerary', label: i18n.t('nav.myTrip'), icon: Calendar },
@@ -20,7 +20,13 @@
     <!-- Desktop Sidebar -->
     <aside class="sidebar">
         <div>
-            <div class="logo">{i18n.t('nav.travelAssistant')}</div>
+            {#if hasTrip}
+                <button class="back-btn" onclick={onBackTrip}> ← {i18n.t('nav.back') || '返回'}</button>
+            {/if}
+            <div class="logo">
+                <img src="/logo.png" alt="TripFlow Logo" class="logo-img" />
+                <span>{i18n.t('nav.travelAssistant')}</span>
+            </div>
             <nav>
                 {#each tabs as tab}
                     <button 
@@ -44,6 +50,11 @@
     <div class="main-content">
         <!-- Mobile Header -->
         <header class="mobile-header">
+            {#if hasTrip}
+                <button class="back-btn-mobile" onclick={onBackTrip}>
+                    ← 返回
+                </button>
+            {/if}
             <h1>{tabs.find(t => t.id === view)?.label}</h1>
             <button class="icon-btn" onclick={() => i18n.toggle()}>
                 <Languages size={20} />
@@ -94,6 +105,36 @@
         margin-bottom: 2rem;
         padding: 0 0.5rem;
         color: #18181b;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .logo-img {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+    }
+
+    .back-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        border: none;
+        background: transparent;
+        color: #71717a;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .back-btn:hover {
+        background: #e4e4e7;
+        color: #18181b;
     }
     
     .sidebar nav {
@@ -136,19 +177,49 @@
     }
 
     .mobile-header {
-        display: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         padding: 1rem;
         border-bottom: 1px solid #e4e4e7;
         background: white;
         color: #18181b;
-        display: flex; /* Changed for alignment */
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
+        position: relative;
+    }
+
+    .back-btn-mobile {
+        background: transparent;
+        border: none;
+        color: #71717a;
+        cursor: pointer;
+        padding: 0.5rem;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-radius: 0.5rem;
+        white-space: nowrap;
+        justify-self: start;
+    }
+
+    .back-btn-mobile:hover {
+        background: #e4e4e7;
+        color: #18181b;
     }
     
     .mobile-header h1 {
         margin: 0;
         font-size: 1.1rem;
+        text-align: center;
+        justify-self: center;
+        grid-column: 1 / -1;
+    }
+
+    .mobile-header .icon-btn {
+        justify-self: end;
     }
 
     /* Hide header only on desktop */
@@ -175,6 +246,7 @@
     }
 
     .bottom-nav button {
+        flex: 1;
         background: transparent;
         border: none;
         color: #71717a;
@@ -183,6 +255,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        height: 100%;
     }
 
     .bottom-nav button.active {
@@ -239,6 +312,8 @@
             background: #27272a;
             color: #f4f4f5;
         }
+        .back-btn { color: #a1a1aa; }
+        .back-btn:hover { background: #27272a; color: #f4f4f5; }
         .mobile-header {
             background: #18181b;
             border-bottom-color: #27272a;
@@ -251,5 +326,7 @@
         .bottom-nav button { color: #a1a1aa; }
         .bottom-nav button.active { color: #60a5fa; }
         .icon-btn { color: #a1a1aa; }
+        .back-btn-mobile { color: #a1a1aa; }
+        .back-btn-mobile:hover { background: #27272a; color: #f4f4f5; }
     }
 </style>
