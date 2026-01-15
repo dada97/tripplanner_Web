@@ -689,8 +689,6 @@
 
             .nav-btn:not(:disabled):hover { background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border-color: #60a5fa; }
 
-            
-
             .day-toggle { background: linear-gradient(135deg, #27272a 0%, #1f2937 100%); border-color: #3f3f46; color: #f4f4f5; }
 
             .day-toggle:hover { border-color: #60a5fa; background: linear-gradient(135deg, #1f2937 0%, #111827 100%); }
@@ -734,84 +732,45 @@
                 background: #18181b; 
 
             }
-
-            
-
             .export-btn { color: #a1a1aa; }
-
             .export-btn:hover { background: #27272a; color: #f4f4f5; }
-
         }
-
-    
 
         .view-controls {
-
             display: flex;
-
             flex-direction: column;
-
             align-items: center;
-
             gap: 1.25rem;
-
             margin-top: 1.5rem;
-
             width: 100%;
-
         }
-
-        
 
         .header-title-row {
-
-            display: flex;
-
+            width:100%;
+            display: flex;   
             align-items: center;
-
             gap: 1rem;
-
         }
-
-        
 
         .export-btn {
-
             background: transparent;
-
             border: none;
-
             padding: 0.5rem;
-
             color: #71717a;
-
             cursor: pointer;
-
             border-radius: 0.5rem;
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
             transition: all 0.2s;
-
         }
-
         
-
         .export-btn:hover {
-
             background: #f4f4f5;
-
             color: #18181b;
-
         }
 
-    
-
-        .toggle-group {
+    .toggle-group {
         display: flex;
         background: linear-gradient(135deg, #27272a 0%, #1f2937 100%);
         padding: 0.25rem;

@@ -718,14 +718,14 @@
                     </div>
                 {:else}
                     <div class="modal-header">
-                        <h3>{activityForExpenses.name} - {i18n.t('trip.expenses')}</h3>
+                        <h3>{activityForExpenses?.name} - {i18n.t('trip.expenses')}</h3>
                         <button class="close-btn" onclick={() => activityForExpenses = null}><X size={20}/></button>
                     </div>
                     <div class="expense-list-modal">
-                        {#if activityForExpenses.expenses.length === 0}
+                        {#if activityForExpenses?.expenses.length === 0}
                             <p class="empty-list">{i18n.t('modal.noExpenses')}</p>
                         {/if}
-                        {#each activityForExpenses.expenses as expense (expense.id)}
+                        {#each activityForExpenses?.expenses as expense (expense.id)}
                             {@const Icon = categoryIcons[expense.category]}
                             {@const color = categoryColors[expense.category]}
                             {@const categoryLabel = i18n.t(`cat.${expense.category}`)}

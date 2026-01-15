@@ -145,6 +145,7 @@
 
     async function handleImageUpload(e: Event) {
         const input = e.target as HTMLInputElement;
+        console.log("upload image")
         if (!input.files || input.files.length === 0) return;
         const files = Array.from(input.files);
         for (const file of files) {
@@ -309,7 +310,7 @@
                     <div class="editor-header">
                         <h3>{i18n.t('journal.viewEntry')}</h3>
                         <div class="header-actions">
-                            <button class="icon-btn edit-action" onclick={() => openEditor(viewingEntry!)}><Edit size={18} /></button>
+                            <button class="edit-action-btn" onclick={() => openEditor(viewingEntry!)} title="編輯此日記"><Edit size={20} /><span>編輯</span></button>
                             <button class="close-btn" onclick={closeViewer}><X size={20} /></button>
                         </div>
                     </div>
@@ -327,7 +328,9 @@
                                 {#each viewingEntry.photos as photo}<img src={photo} alt="Journal" />{/each}
                             </div>
                         {/if}
-                        <p class="viewer-content">{viewingEntry.content}</p>
+                        <div class="viewer-content-field">
+                            <p class="viewer-content">{viewingEntry.content}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -357,10 +360,10 @@
                         <div class="field">
                             <fieldset><legend>{i18n.t('journal.photos')}</legend>
                             <div class="photo-upload-area">
-                                <input type="file" id="photo-upload" accept="image/*" multiple onchange={handleImageUpload} style="display: none;" />
+                                <input type="file" id="photo-upload" accept="image/*" multiple onchange={handleImageUpload} />
                                 <div class="photo-grid">
                                     {#each entryPhotos as photo, i}<div class="photo-thumb"><img src={photo} alt="Thumbnail" /><button class="remove-photo" onclick={() => removePhoto(i)}><X size={12} /></button></div>{/each}
-                                    <label for="photo-upload" class="add-photo-btn"><ImageIcon size={24} /><span>{i18n.t('journal.addPhotos')}</span></label>
+                                    <label for="photo-upload" class="add-photo-btn" role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && document.getElementById('photo-upload')?.click()}><ImageIcon size={24} /><span>{i18n.t('journal.addPhotos')}</span></label>
                                 </div>
                             </div>
                             </fieldset>
@@ -379,8 +382,8 @@
 
 <style>
     header { padding: 1.5rem 1.5rem 1rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; flex-shrink: 0; border-bottom: 1px solid #f4f4f5; background: white; z-index: 10; }
-    .header-title-row { display: flex; align-items: center; justify-content: center; gap: 1rem; position: relative; }
-    .export-btn { background: transparent; border: none; padding: 0.5rem; color: #71717a; cursor: pointer; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+    .header-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; max-width: 400px; } /* Changed to space-between and added width/max-width */
+    .export-btn { background: transparent; border: none; padding: 0.5rem; color: #71717a; cursor: pointer; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; /* Removed absolute positioning */ }
     .export-btn:hover { background: #f4f4f5; color: #18181b; }
     h2 { margin: 0; text-align: center; }
     .day-navigator { display: flex; align-items: center; justify-content: center; gap: 0.75rem; width: 100%; max-width: 400px; }
@@ -402,7 +405,7 @@
     .backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; background: rgba(0,0,0,0.02); }
 
     .journal-list { flex: 1; display: grid; grid-template-columns: 1fr; gap: 1.5rem; padding: 1rem 1.5rem 6rem 1.5rem; overflow-y: auto; overflow-x: hidden; align-content: start; }
-    .journal-card { border-radius: 1rem; overflow: hidden; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); width: 100%; height: 300px; display: flex; flex-direction: column; box-sizing: border-box; position: relative; background-color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: none; }
+    .journal-card { border-radius: 1rem; overflow: hidden; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); width: 100%; min-height: 200px; display: flex; flex-direction: column; box-sizing: border-box; position: relative; background-color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: none; }
     .journal-card.no-photo { background: linear-gradient(135deg, #f3f4f6 0%, #e2e8f0 100%); }
     .card-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background-color: #000; }
     .journal-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); }
@@ -417,8 +420,8 @@
     .location-row { display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
     .journal-card.no-photo .location-row { color: #64748b; text-shadow: none; }
     .location { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card-content { margin: 0; font-size: 0.95rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
-    .journal-card.no-photo .card-content { color: #334155; text-shadow: none; -webkit-line-clamp: 8; line-clamp: 8; }
+    .card-content { margin: 0; font-size: 0.95rem; line-height: 1.4; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+    .journal-card.no-photo .card-content { color: #334155; text-shadow: none; }
 
     .fab { position: fixed; bottom: 4.0rem; right: 2.5rem; width: 3.5rem; height: 3.5rem; border-radius: 1.25rem; background: #2563eb; color: white; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px -4px rgba(37, 99, 235, 0.4); cursor: pointer; transition: all 0.2s; z-index: 100; }
     .fab:hover { transform: scale(1.05) rotate(90deg); background: #1d4ed8; }
@@ -428,12 +431,16 @@
     .editor-header h3 { margin: 0; font-size: 1.1rem; font-weight: 700; }
     .close-btn { background: transparent; border: none; padding: 0.5rem; cursor: pointer; color: #71717a; border-radius: 0.5rem; }
     .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .edit-action-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; border: none; border-radius: 0.75rem; cursor: pointer; font-weight: 600; font-size: 0.95rem; transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3); }
+    .edit-action-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -2px rgba(37, 99, 235, 0.5); background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%); }
+    .edit-action-btn:active { transform: translateY(0); }
     .edit-action { color: #3b82f6; background: #eff6ff; border: none; cursor: pointer; padding: 0.5rem; border-radius: 0.5rem; }
     .editor-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; overflow-y: auto; }
     .viewer-meta { display: flex; flex-wrap: wrap; gap: 1.25rem; color: #71717a; font-size: 0.9rem; margin-bottom: 1.5rem; border-bottom: 1px solid #f4f4f5; padding-bottom: 1.25rem; }
     .meta-row { display: flex; align-items: center; gap: 0.5rem; }
     .meta-row.weather { color: #f59e0b; font-weight: 500; }
-    .viewer-content { white-space: pre-wrap; line-height: 1.75; color: #18181b; font-size: 1.05rem; }
+    .viewer-content-field { flex: 1; padding: 1.5rem; background: #f8fafc; border-radius: 0.75rem; border: 1.5px solid #e2e8f0; min-height: 150px; max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; }
+    .viewer-content { white-space: pre-wrap; line-height: 1.75; color: #18181b; font-size: 1.05rem; margin: 0; word-break: break-word; overflow-wrap: break-word; }
     .viewer-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
     .viewer-photos img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 0.75rem; }
     .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; max-height: 220px; overflow-y: auto; padding: 0.5rem 0; }
@@ -441,8 +448,9 @@
     .photo-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.5rem; }
     .remove-photo { position: absolute; top: 0.25rem; right: 0.25rem; background: rgba(239, 68, 68, 0.95); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); }
     .remove-photo:hover { background: #dc2626; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); }
-    .add-photo-btn { aspect-ratio: 1; border: 2px dashed #e4e4e7; border-radius: 0.75rem; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #71717a; cursor: pointer; font-size: 0.8rem; gap: 0.25rem; }
-    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    #photo-upload { display: none; }
+    .add-photo-btn { aspect-ratio: 1; border: 2px dashed #e4e4e7; border-radius: 0.75rem; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #71717a; cursor: pointer; font-size: 0.8rem; gap: 0.25rem; transition: all 0.2s; user-select: none; touch-action: manipulation; }
+    .add-photo-btn:hover, .add-photo-btn:focus { background: #f8fafc; border-color: #3b82f6; color: #3b82f6; }
     .field { display: flex; flex-direction: column; gap: 0.5rem; }
     fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
     legend { font-size: 0.85rem; font-weight: 600; color: #71717a; text-transform: uppercase; padding: 0; }
@@ -485,8 +493,14 @@
         .editor-header, .editor-footer, .input-wrap, .viewer-meta, .add-photo-btn { border-color: #27272a; }
         .input-wrap, .weather-btn { background: #27272a; border-color: #3f3f46; }
         .weather-btn.active { background: #1e3a8a; color: #60a5fa; border-color: #1e40af; }
+        .add-photo-btn { border-color: #3f3f46; color: #a1a1aa; }
+        .add-photo-btn:hover, .add-photo-btn:focus { background: #27272a; border-color: #60a5fa; color: #60a5fa; }
+        .edit-action-btn { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4); }
+        .edit-action-btn:hover { box-shadow: 0 8px 12px -2px rgba(37, 99, 235, 0.6); background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%); }
         .icon-btn.danger { background: #450a0a; color: #fca5a5; }
         .content-field textarea { background: #27272a; color: #f4f4f5; border-color: #3f3f46; }
+        .viewer-content-field { background: #27272a; border-color: #3f3f46; }
+        .viewer-content { color: #f4f4f5; }
         .journal-card.no-photo { background: linear-gradient(135deg, #27272a 0%, #18181b 100%); }
         .export-btn { color: #a1a1aa; }
     }
